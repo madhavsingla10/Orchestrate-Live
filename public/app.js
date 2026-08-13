@@ -486,6 +486,39 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastLoggedEvent = '';
   let lastLoggedMessage = '';
 
+  // Helper to format tool names into Title Case for badges (e.g., run_command -> Run Command, list_dir -> List Dir)
+  function formatToolBadgeName(toolName) {
+    if (!toolName) return '';
+    const customMap = {
+      'call_mcp_tool': 'Call MCP Tool',
+      'list_dir': 'List Dir',
+      'list_directory': 'List Directory',
+      'run_command': 'Run Command',
+      'view_file': 'View File',
+      'write_to_file': 'Write To File',
+      'replace_file_content': 'Replace File Content',
+      'multi_replace_file_content': 'Multi Replace File Content',
+      'grep_search': 'Grep Search',
+      'search_web': 'Search Web',
+      'read_url_content': 'Read URL Content',
+      'create_project': 'Create Project',
+      'get_project': 'Get Project',
+      'get_screen': 'Get Screen',
+      'generate_screen_from_text': 'Generate Screen From Text',
+      'generate_variants': 'Generate Variants',
+      'edit_screens': 'Edit Screens'
+    };
+
+    if (customMap[toolName]) {
+      return customMap[toolName];
+    }
+
+    return toolName
+      .replace(/_/g, ' ')
+      .replace(/-/g, ' ')
+      .replace(/\b\w/g, char => char.toUpperCase());
+  }
+
   // Formats and appends console logs
   function appendEventToConsole(event, message, metadata, isError = false) {
     if (!message) return;
@@ -532,7 +565,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Attach metadata badges if present
       if (metadata) {
         if (metadata.tool_name) {
-          htmlContent = `<span class="badge badge-tool">${metadata.tool_name}</span> ` + htmlContent;
+          const toolBadge = formatToolBadgeName(metadata.tool_name);
+          htmlContent = `<span class="badge badge-tool">${escapeHtml(toolBadge)}</span> ` + htmlContent;
         }
         if (metadata.target) {
           htmlContent += ` <span class="badge badge-target">${escapeHtml(metadata.target)}</span>`;
@@ -586,7 +620,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // Attach metadata badges if present
       if (metadata) {
         if (metadata.tool_name) {
-          htmlContent = `<span class="badge badge-tool">${metadata.tool_name}</span> ` + htmlContent;
+          const toolBadge = formatToolBadgeName(metadata.tool_name);
+          htmlContent = `<span class="badge badge-tool">${escapeHtml(toolBadge)}</span> ` + htmlContent;
         }
         if (metadata.target) {
           htmlContent += ` <span class="badge badge-target">${escapeHtml(metadata.target)}</span>`;
