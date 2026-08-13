@@ -4,10 +4,13 @@
   "description": "Bridge server for OrchestrateLive telemetry logs",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "demo": "node ../test/demo_telemetry.js",
+    "simulate:multi": "node ../test/simulate_multirun.js"
   },
   "dependencies": {
     "express": "^4.19.2",
     "ws": "^8.18.0"
   }
 }
+

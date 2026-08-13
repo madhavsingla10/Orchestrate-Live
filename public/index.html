@@ -20,164 +20,161 @@
       <div class="brand">
         <h1>Orchestrate<span>Live</span></h1>
         <div id="connection-badge" class="connection-status disconnected">Disconnected</div>
+        <div id="active-runs-count" class="badge-active-runs">0 Active Runs</div>
       </div>
-      <div class="controls">
+      <div class="header-right-controls">
         <button id="audio-toggle" class="btn btn-audio-toggle muted">
           <span class="icon">🔇</span> Enable Audio
         </button>
       </div>
     </header>
 
-    <!-- Metrics Ribbon -->
-    <section class="metrics-ribbon">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">PIPELINE LATENCY</span>
-          <span class="metric-badge realtime" title="Computed live from event timestamps">REAL-TIME</span>
+    <!-- Multi-Run Navigation & View Selector Bar -->
+    <section class="run-tabs-section">
+      <div class="run-tabs-nav-wrapper">
+        <div class="run-tabs-bar" id="run-tab-bar">
+          <button class="run-tab active" data-run-id="all">
+            <span class="run-tab-dot" style="background-color: #00f5ff;"></span>
+            <span class="run-tab-label">⚡ All Runs (Parallel)</span>
+          </button>
         </div>
-        <span id="metric-latency" class="metric-value">-- ms</span>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">PROCESSING SPEED</span>
-          <span id="badge-speed" class="metric-badge live" title="Calculated live from step throughput">LIVE</span>
+        
+        <!-- View Options for All Runs (Parallel default vs Focus) -->
+        <div id="all-runs-subview-toggle" class="subview-toggle-group">
+          <button id="btn-allruns-parallel" class="subview-btn active" title="Side-by-Side Parallel Grid View">
+            <span class="icon">⚡</span> Side-by-Side
+          </button>
+          <button id="btn-allruns-focus" class="subview-btn" title="Master Combined Focus View">
+            <span class="icon">🎯</span> Master Focus
+          </button>
         </div>
-        <span id="metric-speed" class="metric-value">-- t/s</span>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">CONTEXT WINDOW</span>
-          <span id="badge-context" class="metric-badge live" title="Monitored live from session payload">LIVE</span>
-        </div>
-        <span id="metric-context" class="metric-value">-- %</span>
-      </div>
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">SESSION COST</span>
-          <span id="badge-cost" class="metric-badge estimated" title="Estimated live from session tokens">EST. COST</span>
-        </div>
-        <span id="metric-cost" class="metric-value">~$0.0000</span>
       </div>
     </section>
 
-    <!-- Pipeline Flow Diagram -->
-    <section class="pipeline-section">
-      <div class="pipeline-flow">
-        
-        <!-- Node 1: Thought -->
-        <div class="pipeline-node" id="node-thinking">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">Thought</div>
-          <div class="node-sub">Analyzing & Reasoning</div>
-        </div>
-        
-        <div class="flow-arrow"></div>
 
-        <!-- Node 2: Planning -->
-        <div class="pipeline-node" id="node-planning">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">Planning</div>
-          <div class="node-sub">Structuring Steps</div>
-        </div>
-        
-        <div class="flow-arrow"></div>
-
-        <!-- Node 3: Reading -->
-        <div class="pipeline-node" id="node-reading">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">Reading</div>
-          <div class="node-sub">Files & Search</div>
-        </div>
-        
-        <div class="flow-arrow"></div>
-
-        <!-- Node 4: Writing -->
-        <div class="pipeline-node" id="node-writing">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">Writing</div>
-          <div class="node-sub">Editing Code</div>
-        </div>
-        
-        <div class="flow-arrow"></div>
-
-        <!-- Node 5: Terminal -->
-        <div class="pipeline-node" id="node-terminal">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">Terminal</div>
-          <div class="node-sub">Running Commands</div>
-        </div>
-        
-        <div class="flow-arrow"></div>
-
-        <!-- Node 6: MCP -->
-        <div class="pipeline-node" id="node-mcp">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">MCP</div>
-          <div class="node-sub">Protocol & Tools</div>
-        </div>
-        
-        <div class="flow-arrow"></div>
-
-        <!-- Node 7: Done -->
-        <div class="pipeline-node" id="node-task_done">
-          <div class="indicator-ring">
-            <div class="indicator-dot"></div>
-          </div>
-          <div class="node-label">Done</div>
-          <div class="node-sub">Task Completed</div>
-        </div>
-        
-      </div>
+    <!-- Multi-Run Parallel Split Grid Container -->
+    <section id="multi-run-container" class="multi-run-grid parallel-mode">
+      <!-- Dynamic Run Cards will be rendered here by app.js -->
     </section>
 
-    <!-- Console Viewport -->
-    <section class="console-section">
-      <div class="console-header">
-        <div class="console-title-group">
-          <h2>Live Activity Feed</h2>
-          <span id="log-count-badge" class="log-count-badge">0 Events</span>
-        </div>
-        <div class="console-controls">
-          <div class="search-input-wrapper">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="log-search-input" placeholder="Filter logs (e.g. tool, style.css)..." />
-            <button id="btn-regex-toggle" class="btn-mini" title="Toggle Regex Search">.*</button>
+    <!-- Single Focus Mode Section (Hidden by default, shown when Focus View is selected) -->
+    <div id="single-focus-section" class="single-focus-view hidden">
+      <!-- Metrics Ribbon -->
+      <section class="metrics-ribbon">
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">PIPELINE LATENCY</span>
+            <span class="metric-badge realtime">REAL-TIME</span>
           </div>
-          <div class="filter-pills" id="filter-pills">
-            <button class="filter-pill active" data-filter="all">All</button>
-            <button class="filter-pill" data-filter="thinking">Thought</button>
-            <button class="filter-pill" data-filter="executing_tool">Tool Call</button>
-            <button class="filter-pill" data-filter="mcp">MCP</button>
-            <button class="filter-pill" data-filter="terminal">Terminal</button>
-            <button class="filter-pill" data-filter="task_error">Errors</button>
+          <span id="metric-latency" class="metric-value">-- ms</span>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">PROCESSING SPEED</span>
+            <span id="badge-speed" class="metric-badge live">LIVE</span>
           </div>
-          <div class="console-actions">
-            <button id="autoscroll-toggle-btn" class="btn btn-secondary btn-autoscroll active" title="Toggle Autoscroll Lock">
-              <span class="icon">⬇</span> Auto
-            </button>
-            <button id="clear-console-btn" class="btn btn-secondary">Clear</button>
+          <span id="metric-speed" class="metric-value">-- t/s</span>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">CONTEXT WINDOW</span>
+            <span id="badge-context" class="metric-badge live">LIVE</span>
+          </div>
+          <span id="metric-context" class="metric-value">-- %</span>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">SESSION COST</span>
+            <span id="badge-cost" class="metric-badge estimated">EST. COST</span>
+          </div>
+          <span id="metric-cost" class="metric-value">~$0.0000</span>
+        </div>
+      </section>
+
+      <!-- Single Pipeline Flow Diagram -->
+      <section class="pipeline-section">
+        <div class="pipeline-flow" id="single-pipeline-flow">
+          <div class="pipeline-node" id="node-thinking">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Thought</div>
+            <div class="node-sub">Analyzing</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-planning">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Planning</div>
+            <div class="node-sub">Structuring</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-reading">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Reading</div>
+            <div class="node-sub">Files & Search</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-writing">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Writing</div>
+            <div class="node-sub">Editing Code</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-terminal">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Terminal</div>
+            <div class="node-sub">Commands</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-mcp">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">MCP</div>
+            <div class="node-sub">Tools</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-task_done">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Done</div>
+            <div class="node-sub">Completed</div>
           </div>
         </div>
-      </div>
-      <div class="console-viewport font-mono" id="console-feed">
-        <div class="console-row system-msg" data-event-type="system-msg">
-          <span class="timestamp">[00:00:00]</span>
-          <span class="message">Waiting for agent telemetry stream...</span>
+      </section>
+
+      <!-- Console Viewport -->
+      <section class="console-section">
+        <div class="console-header">
+          <div class="console-title-group">
+            <h2>Live Activity Feed</h2>
+            <span id="log-count-badge" class="log-count-badge">0 Events</span>
+          </div>
+          <div class="console-controls">
+            <div class="search-input-wrapper">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="log-search-input" placeholder="Filter logs..." />
+              <button id="btn-regex-toggle" class="btn-mini" title="Toggle Regex Search">.*</button>
+            </div>
+            <div class="filter-pills" id="filter-pills">
+              <button class="filter-pill active" data-filter="all">All</button>
+              <button class="filter-pill" data-filter="thinking">Thought</button>
+              <button class="filter-pill" data-filter="executing_tool">Tool Call</button>
+              <button class="filter-pill" data-filter="mcp">MCP</button>
+              <button class="filter-pill" data-filter="terminal">Terminal</button>
+              <button class="filter-pill" data-filter="task_error">Errors</button>
+            </div>
+            <div class="console-actions">
+              <button id="autoscroll-toggle-btn" class="btn btn-secondary btn-autoscroll active" title="Toggle Autoscroll Lock">
+                <span class="icon">⬇</span> Auto
+              </button>
+              <button id="clear-console-btn" class="btn btn-secondary">Clear</button>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
+        <div class="console-viewport font-mono" id="console-feed">
+          <div class="console-row system-msg" data-event-type="system-msg">
+            <span class="timestamp">[00:00:00]</span>
+            <span class="message">Waiting for agent telemetry stream...</span>
+          </div>
+        </div>
+      </section>
+    </div>
 
   </div>
 
@@ -186,3 +183,4 @@
   <script src="app.js"></script>
 </body>
 </html>
+

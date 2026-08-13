@@ -1,27 +1,36 @@
 /**
- * OrchestrateLive Core App Coordinator
- * Coordinates WebSockets, UI elements, and Audio synthesis.
+ * OrchestrateLive Core App Coordinator (Multi-Run Enabled)
+ * Coordinates WebSockets, Multi-Run parallel cards, UI state, and Audio synthesis.
  */
 document.addEventListener('DOMContentLoaded', () => {
   // Web Audio engine instance
   const audioEngine = new window.AudioTelemetryEngine();
   
-  // DOM Elements
+  // DOM Elements - Global & Layout Controls
   const audioToggle = document.getElementById('audio-toggle');
   const connectionBadge = document.getElementById('connection-badge');
+  const activeRunsCountBadge = document.getElementById('active-runs-count');
+  
+  const multiRunContainer = document.getElementById('multi-run-container');
+  const singleFocusSection = document.getElementById('single-focus-section');
+  const runTabBar = document.getElementById('run-tab-bar');
+
+  const allRunsSubviewToggle = document.getElementById('all-runs-subview-toggle');
+  const btnAllRunsParallel = document.getElementById('btn-allruns-parallel');
+  const btnAllRunsFocus = document.getElementById('btn-allruns-focus');
+
+  // DOM Elements - Single View Fallback Controls
   const consoleFeed = document.getElementById('console-feed');
   const clearConsoleBtn = document.getElementById('clear-console-btn');
-  
   const metricLatency = document.getElementById('metric-latency');
   const metricSpeed = document.getElementById('metric-speed');
   const metricContext = document.getElementById('metric-context');
   const metricCost = document.getElementById('metric-cost');
-
   const badgeSpeed = document.getElementById('badge-speed');
   const badgeContext = document.getElementById('badge-context');
   const badgeCost = document.getElementById('badge-cost');
-  
-  const nodes = {
+
+  const singleNodes = {
     thinking: document.getElementById('node-thinking'),
     planning: document.getElementById('node-planning'),
     reading: document.getElementById('node-reading'),
@@ -31,14 +40,16 @@ document.addEventListener('DOMContentLoaded', () => {
     task_done: document.getElementById('node-task_done')
   };
 
-  // State
+  // State Management
+  let allRunsSubviewMode = 'parallel'; // 'parallel' (default) | 'focus'
+  let activeTabRunId = 'all';         // 'all' or specific run_id
   let reconnectDelay = 2000;
   let socket = null;
-  let lastRunningCommand = '';
-  let lastReadingFile = '';
-  let lastEditingFile = '';
 
-  // Log Controls State
+  // Registered Runs Store
+  const runsStore = {};
+
+  // Log Filtering State for Single View
   const logSearchInput = document.getElementById('log-search-input');
   const btnRegexToggle = document.getElementById('btn-regex-toggle');
   const filterPillsContainer = document.getElementById('filter-pills');
@@ -49,9 +60,312 @@ document.addEventListener('DOMContentLoaded', () => {
   let searchQuery = '';
   let isRegexMode = false;
   let isAutoscroll = true;
-  let totalEventCount = 0;
 
-  // Filter Pills Event Listener
+  // --- All Runs Sub-View Toggle (Side-by-Side Parallel vs Master Focus) ---
+  if (btnAllRunsParallel && btnAllRunsFocus) {
+    btnAllRunsParallel.addEventListener('click', () => {
+      allRunsSubviewMode = 'parallel';
+      btnAllRunsParallel.classList.add('active');
+      btnAllRunsFocus.classList.remove('active');
+      updateTabFocus();
+    });
+
+    btnAllRunsFocus.addEventListener('click', () => {
+      allRunsSubviewMode = 'focus';
+      btnAllRunsFocus.classList.add('active');
+      btnAllRunsParallel.classList.remove('active');
+      updateTabFocus();
+    });
+  }
+
+  // --- Run Tab Bar Event Listener ---
+  if (runTabBar) {
+    runTabBar.addEventListener('click', (e) => {
+      const tab = e.target.closest('.run-tab');
+      if (!tab) return;
+      
+      runTabBar.querySelectorAll('.run-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeTabRunId = tab.dataset.runId;
+
+      updateTabFocus();
+    });
+  }
+
+  function computeMasterFocusMetrics() {
+    const runs = Object.values(runsStore);
+    if (runs.length === 0) return;
+
+    let sumLatency = 0, countLatency = 0;
+    let sumSpeed = 0, countSpeed = 0;
+    let sumContext = 0, countContext = 0;
+    let sumCost = 0;
+
+    runs.forEach(run => {
+      if (typeof run.lastLatency === 'number') { sumLatency += run.lastLatency; countLatency++; }
+      if (typeof run.lastSpeed === 'number') { sumSpeed += run.lastSpeed; countSpeed++; }
+      if (typeof run.lastContext === 'number') { sumContext += run.lastContext; countContext++; }
+      if (typeof run.lastCost === 'number') { sumCost += run.lastCost; }
+    });
+
+    const avgLatency = countLatency > 0 ? Math.round(sumLatency / countLatency) : 0;
+    const avgSpeed = countSpeed > 0 ? Math.round(sumSpeed / countSpeed) : 0;
+    const avgContext = countContext > 0 ? (Math.round((sumContext / countContext) * 10) / 10) : 0;
+
+    if (metricLatency) metricLatency.textContent = `${avgLatency} ms`;
+    if (metricSpeed) metricSpeed.textContent = `${avgSpeed} t/s`;
+    if (metricContext) metricContext.textContent = `${avgContext} %`;
+    if (metricCost) metricCost.textContent = `~$ ${sumCost.toFixed(4)}`;
+
+    if (badgeSpeed) { badgeSpeed.className = 'metric-badge avg'; badgeSpeed.textContent = 'AVG SPEED'; }
+    if (badgeContext) { badgeContext.className = 'metric-badge avg'; badgeContext.textContent = 'AVG CONTEXT'; }
+    if (badgeCost) { badgeCost.className = 'metric-badge total'; badgeCost.textContent = 'TOTAL COST'; }
+  }
+
+  function updateTabFocus() {
+    if (activeTabRunId === 'all') {
+      singleFocusSection.classList.remove('individual-run-mode');
+      
+      // Show All Runs subview toggle
+      if (allRunsSubviewToggle) allRunsSubviewToggle.classList.remove('hidden');
+
+      if (allRunsSubviewMode === 'parallel') {
+        // Parallel View: 2-Column Side-by-Side Grid
+        multiRunContainer.className = 'multi-run-grid parallel-mode';
+        singleFocusSection.classList.add('hidden');
+        Object.values(runsStore).forEach(run => {
+          if (run.cardEl) run.cardEl.classList.remove('hidden');
+        });
+      } else {
+        // Master Focus View: Master Combined Feed & Pipeline with Averaged / Summed Metrics
+        multiRunContainer.className = 'multi-run-grid hidden';
+        singleFocusSection.classList.remove('hidden');
+        computeMasterFocusMetrics();
+        applyLogFilters();
+      }
+    } else {
+      // Specific CLI tab selected (e.g., 'cli-backend' or 'conv-e53b43b2')
+      singleFocusSection.classList.add('individual-run-mode');
+
+      // Hide All Runs subview toggle
+      if (allRunsSubviewToggle) allRunsSubviewToggle.classList.add('hidden');
+
+      // Display Full Focus View (matching image copy 3.png) for this specific CLI
+      multiRunContainer.className = 'multi-run-grid hidden';
+      singleFocusSection.classList.remove('hidden');
+
+      // Reset badges to Live / Real-Time for single run
+      if (badgeSpeed) { badgeSpeed.className = 'metric-badge live'; badgeSpeed.textContent = 'LIVE'; }
+      if (badgeContext) { badgeContext.className = 'metric-badge live'; badgeContext.textContent = 'LIVE'; }
+      if (badgeCost) { badgeCost.className = 'metric-badge estimated'; badgeCost.textContent = 'EST. COST'; }
+
+      // Populate Focus View Metrics & Pipeline Map with this specific CLI's state
+      const targetRun = runsStore[activeTabRunId];
+      if (targetRun) {
+        if (metricLatency) metricLatency.textContent = targetRun.metricsEls.latency ? targetRun.metricsEls.latency.textContent : '-- ms';
+        if (metricSpeed) metricSpeed.textContent = targetRun.metricsEls.speed ? targetRun.metricsEls.speed.textContent : '-- t/s';
+        if (metricContext) metricContext.textContent = targetRun.metricsEls.context ? targetRun.metricsEls.context.textContent : '-- %';
+        if (metricCost) metricCost.textContent = targetRun.metricsEls.cost ? targetRun.metricsEls.cost.textContent : '~$0.0000';
+        updateSinglePipelineUI(targetRun.lastActiveEvent || 'idle', targetRun.lastToolName);
+      }
+
+      // Filter Activity Console Feed to logs belonging to this specific CLI
+      applyLogFilters();
+    }
+  }
+
+
+
+
+
+  // --- Dynamic Run Card Creation ---
+  function getOrCreateRunUI(runId, runName, runColor) {
+    if (runsStore[runId]) return runsStore[runId];
+
+    const color = runColor || '#00f5ff';
+    const name = runName || (runId === 'cli-main' ? 'CLI 1 - Main' : `CLI (${runId})`);
+
+    // 1. Create Tab Button in Header Tab Bar
+    const tabEl = document.createElement('button');
+    tabEl.className = 'run-tab';
+    tabEl.dataset.runId = runId;
+    tabEl.innerHTML = `
+      <span class="run-tab-dot" style="background-color: ${color}; color: ${color};"></span>
+      <span class="run-tab-label">${escapeHtml(name)}</span>
+    `;
+    runTabBar.appendChild(tabEl);
+
+    // 2. Create Split Card Column in Multi-Run Grid
+    const cardEl = document.createElement('div');
+    cardEl.className = 'run-card';
+    cardEl.id = `run-card-${runId}`;
+
+    cardEl.innerHTML = `
+      <div class="run-card-header">
+        <div class="run-title-group">
+          <div class="run-color-bar" style="background-color: ${color};"></div>
+          <div class="run-title">${escapeHtml(name)}</div>
+        </div>
+        <div class="run-status-badge IDLE">IDLE</div>
+      </div>
+
+      <div class="run-metrics-strip">
+        <div class="run-metric-item">
+          <span class="run-metric-label">LATENCY</span>
+          <span class="run-metric-val metric-run-latency">-- ms</span>
+        </div>
+        <div class="run-metric-item">
+          <span class="run-metric-label">SPEED</span>
+          <span class="run-metric-val metric-run-speed">-- t/s</span>
+        </div>
+        <div class="run-metric-item">
+          <span class="run-metric-label">CONTEXT</span>
+          <span class="run-metric-val metric-run-context">-- %</span>
+        </div>
+        <div class="run-metric-item">
+          <span class="run-metric-label">COST</span>
+          <span class="run-metric-val metric-run-cost">~$0.0000</span>
+        </div>
+      </div>
+
+      <div class="run-pipeline-container">
+        <div class="run-pipeline-flow">
+          <div class="pipeline-node node-run-thinking">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Thought</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node node-run-planning">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Planning</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node node-run-reading">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Reading</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node node-run-writing">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Writing</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node node-run-terminal">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Terminal</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node node-run-mcp">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">MCP</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node node-run-task_done">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Done</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="run-console-viewport font-mono" id="run-console-${runId}">
+        <div class="console-row system-msg">
+          <span class="timestamp">[${new Date().toTimeString().split(' ')[0]}]</span>
+          <span class="message">Initialized telemetry stream for ${escapeHtml(name)}...</span>
+        </div>
+      </div>
+    `;
+
+
+
+    multiRunContainer.appendChild(cardEl);
+
+    // Extract reference pointers
+    const nodes = {
+      thinking: cardEl.querySelector('.node-run-thinking'),
+      planning: cardEl.querySelector('.node-run-planning'),
+      reading: cardEl.querySelector('.node-run-reading'),
+      writing: cardEl.querySelector('.node-run-writing'),
+      terminal: cardEl.querySelector('.node-run-terminal'),
+      mcp: cardEl.querySelector('.node-run-mcp'),
+      task_done: cardEl.querySelector('.node-run-task_done')
+    };
+
+    const metricsEls = {
+      latency: cardEl.querySelector('.metric-run-latency'),
+      speed: cardEl.querySelector('.metric-run-speed'),
+      context: cardEl.querySelector('.metric-run-context'),
+      cost: cardEl.querySelector('.metric-run-cost'),
+      statusBadge: cardEl.querySelector('.run-status-badge')
+    };
+
+    const consoleEl = cardEl.querySelector(`#run-console-${runId}`);
+
+    runsStore[runId] = {
+      run_id: runId,
+      run_name: name,
+      color: color,
+      cardEl,
+      tabEl,
+      nodes,
+      metricsEls,
+      consoleEl,
+      lastRunningCommand: '',
+      lastReadingFile: '',
+      lastEditingFile: ''
+    };
+
+    updateActiveRunsCount();
+    return runsStore[runId];
+  }
+
+  function updateActiveRunsCount() {
+    const count = Object.keys(runsStore).length;
+    if (activeRunsCountBadge) {
+      activeRunsCountBadge.textContent = `${count} Active Run${count !== 1 ? 's' : ''}`;
+    }
+  }
+
+  // Updates pipeline nodes for a specific run
+  function updateRunPipelineUI(runObj, activeEvent, toolName) {
+    if (!runObj || !runObj.nodes) return;
+
+    Object.values(runObj.nodes).forEach(node => {
+      if (node) node.classList.remove('active', 'error');
+    });
+
+    if (activeEvent === 'task_error') {
+      Object.values(runObj.nodes).forEach(node => {
+        if (node) node.classList.add('error');
+      });
+      if (runObj.metricsEls.statusBadge) {
+        runObj.metricsEls.statusBadge.textContent = 'ERROR';
+        runObj.metricsEls.statusBadge.className = 'run-status-badge task_error';
+      }
+    } else if (activeEvent === 'executing_tool') {
+      let activeNodeName = 'reading';
+      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens'].includes(toolName))) {
+        activeNodeName = 'mcp';
+      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
+        activeNodeName = 'writing';
+      } else if (toolName === 'run_command') {
+        activeNodeName = 'terminal';
+      }
+
+      if (runObj.nodes[activeNodeName]) runObj.nodes[activeNodeName].classList.add('active');
+      if (runObj.metricsEls.statusBadge) {
+        runObj.metricsEls.statusBadge.textContent = toolName ? formatToolBadgeName(toolName) : 'EXECUTING';
+        runObj.metricsEls.statusBadge.className = 'run-status-badge executing_tool';
+      }
+    } else if (runObj.nodes[activeEvent]) {
+      runObj.nodes[activeEvent].classList.add('active');
+      if (runObj.metricsEls.statusBadge) {
+        runObj.metricsEls.statusBadge.textContent = activeEvent.toUpperCase();
+        runObj.metricsEls.statusBadge.className = `run-status-badge ${activeEvent}`;
+      }
+    }
+  }
+
+  // Handle Log Filters
   if (filterPillsContainer) {
     filterPillsContainer.addEventListener('click', (e) => {
       const pill = e.target.closest('.filter-pill');
@@ -63,7 +377,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Regex Toggle Button
   if (btnRegexToggle) {
     btnRegexToggle.addEventListener('click', () => {
       isRegexMode = !isRegexMode;
@@ -72,7 +385,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Search Input Handler
   if (logSearchInput) {
     logSearchInput.addEventListener('input', (e) => {
       searchQuery = e.target.value;
@@ -80,7 +392,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Autoscroll Lock Toggle
   if (autoscrollToggleBtn) {
     autoscrollToggleBtn.addEventListener('click', () => {
       isAutoscroll = !isAutoscroll;
@@ -88,7 +399,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Apply log filters across all console rows
   function applyLogFilters() {
     const rows = consoleFeed.querySelectorAll('.console-row');
     let visibleCount = 0;
@@ -105,29 +415,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
     rows.forEach(row => {
       const eventType = row.dataset.eventType || '';
+      const rowRunId = row.dataset.runId || '';
       const rowClassList = Array.from(row.classList);
       const text = row.textContent.toLowerCase();
       const queryLower = trimmedQuery.toLowerCase();
 
+      // Scoped Run Filtering (when a specific CLI tab is active)
+      let runMatch = (activeTabRunId === 'all' || rowRunId === activeTabRunId || eventType === 'system-msg');
+
       let categoryMatch = (currentFilter === 'all');
       if (!categoryMatch) {
-        if (currentFilter === 'thinking' && (eventType === 'thinking' || eventType === 'planning' || rowClassList.includes('thinking') || rowClassList.includes('planning'))) categoryMatch = true;
-        if (currentFilter === 'executing_tool' && (eventType === 'executing_tool' || rowClassList.includes('executing_tool'))) categoryMatch = true;
-        if (currentFilter === 'mcp' && (eventType === 'mcp' || text.includes('mcp') || text.includes('stitch') || text.includes('call mcp tool') || text.includes('call_mcp_tool'))) categoryMatch = true;
-        if (currentFilter === 'terminal' && (eventType === 'terminal' || text.includes('run command') || text.includes('run_command') || text.includes('executing terminal command'))) categoryMatch = true;
-        if (currentFilter === 'task_error' && (eventType.includes('error') || rowClassList.includes('error-run') || rowClassList.includes('task_error'))) categoryMatch = true;
+        if (currentFilter === 'thinking' && (eventType === 'thinking' || eventType === 'planning')) categoryMatch = true;
+        if (currentFilter === 'executing_tool' && (eventType === 'executing_tool')) categoryMatch = true;
+        if (currentFilter === 'mcp' && (eventType === 'mcp' || text.includes('mcp'))) categoryMatch = true;
+        if (currentFilter === 'terminal' && (eventType === 'terminal' || text.includes('run command') || text.includes('executing terminal command'))) categoryMatch = true;
+        if (currentFilter === 'task_error' && (eventType.includes('error') || rowClassList.includes('task_error'))) categoryMatch = true;
       }
 
       let searchMatch = true;
       if (trimmedQuery) {
-        if (regex) {
-          searchMatch = regex.test(row.textContent);
-        } else {
-          searchMatch = text.includes(queryLower);
-        }
+        searchMatch = regex ? regex.test(row.textContent) : text.includes(queryLower);
       }
 
-      if (categoryMatch && searchMatch) {
+      if (runMatch && categoryMatch && searchMatch) {
         row.classList.remove('hidden');
         visibleCount++;
       } else {
@@ -140,35 +450,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  // Updates pipeline active/error classes
-  function updatePipelineUI(activeEvent, toolName) {
-    // Clear previous state classes
-    Object.values(nodes).forEach(node => {
-      if (node) node.classList.remove('active', 'error');
-    });
-
-    if (activeEvent === 'task_error') {
-      // Light up all nodes in ruby error mode
-      Object.values(nodes).forEach(node => {
-        if (node) node.classList.add('error');
-      });
-    } else if (activeEvent === 'executing_tool') {
-      // Differentiate tool execution into Reading, Writing, Terminal, and MCP nodes
-      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'get_screen', 'list_screens'].includes(toolName))) {
-        if (nodes.mcp) nodes.mcp.classList.add('active');
-      } else if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
-        if (nodes.reading) nodes.reading.classList.add('active');
-      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
-        if (nodes.writing) nodes.writing.classList.add('active');
-      } else if (toolName === 'run_command') {
-        if (nodes.terminal) nodes.terminal.classList.add('active');
-      } else {
-        if (nodes.reading) nodes.reading.classList.add('active');
-      }
-    } else if (nodes[activeEvent]) {
-      nodes[activeEvent].classList.add('active');
-    }
-  }
   audioToggle.addEventListener('click', () => {
     if (audioEngine.muted) {
       audioEngine.setMuted(false);
@@ -185,13 +466,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Clear Console logs
-  clearConsoleBtn.addEventListener('click', () => {
-    consoleFeed.innerHTML = '';
-    appendSystemMessage('Console cleared.');
-  });
+  if (clearConsoleBtn) {
+    clearConsoleBtn.addEventListener('click', () => {
+      consoleFeed.innerHTML = '';
+      appendSystemMessage('Console cleared.');
+    });
+  }
 
-  // Connect to Bridge WS Server
+  // Connect to Bridge WebSocket Server
   function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}/stream`;
@@ -201,14 +483,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     socket.onopen = () => {
       setConnectionState('connected', 'Connected');
-      reconnectDelay = 2000; // Reset delay
-      appendSystemMessage('Established real-time stream link.');
+      reconnectDelay = 2000;
+      appendSystemMessage('Established real-time multi-run stream link.');
     };
 
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        handleTelemetryEvent(payload);
+        if (payload.type === 'init_runs' && Array.isArray(payload.runs)) {
+          payload.runs.forEach(r => getOrCreateRunUI(r.run_id, r.run_name, r.color));
+        } else {
+          handleTelemetryEvent(payload);
+        }
       } catch (err) {
         console.error('Error parsing telemetry payload:', err);
       }
@@ -224,122 +510,122 @@ document.addEventListener('DOMContentLoaded', () => {
     };
   }
 
-  // Schedule reconnect with exponential backoff
   function scheduleReconnect() {
-    appendSystemMessage(`Link interrupted. Attempting reconnect in ${reconnectDelay / 1000}s...`);
+    appendSystemMessage(`Link interrupted. Reconnecting in ${reconnectDelay / 1000}s...`);
     setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, 16000);
       connect();
     }, reconnectDelay);
   }
 
-  // Update connection indicator
   function setConnectionState(state, text) {
     connectionBadge.className = `connection-status ${state}`;
     connectionBadge.textContent = text;
   }
 
-  // Triggered when a telemetry packet is received
+  // Main Event Handler for Incoming Telemetry Packets
   function handleTelemetryEvent(payload) {
-    const { event, message, timestamp, metadata } = payload;
+    const { run_id, run_name, run_color, event, message, timestamp, metadata } = payload;
+    const effectiveRunId = run_id || 'cli-main';
     const toolName = metadata ? metadata.tool_name : undefined;
 
-    // Track active command / file contexts
+    // Retrieve or instantiate run UI state
+    const runObj = getOrCreateRunUI(effectiveRunId, run_name, run_color);
+
+    // Save latest event state on runObj
+    runObj.lastActiveEvent = event;
+    runObj.lastToolName = toolName;
+
+    // Track active file contexts per run
     if (metadata && metadata.tool_name) {
       if (metadata.tool_name === 'run_command' && message && message.startsWith('Executing terminal command:')) {
-        lastRunningCommand = metadata.target || '';
+        runObj.lastRunningCommand = metadata.target || '';
       } else if (metadata.tool_name === 'view_file' && message && message.startsWith('Reading file:')) {
-        lastReadingFile = metadata.target || '';
+        runObj.lastReadingFile = metadata.target || '';
       } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content'].includes(metadata.tool_name) && message && message.startsWith('Writing changes to file:')) {
-        lastEditingFile = metadata.target || '';
+        runObj.lastEditingFile = metadata.target || '';
       }
     }
 
-    // Check if tool output represents a failure
     const isError = (event === 'task_error') || (event === 'executing_tool' && isCommandFailure(message, metadata));
 
-    // 1. Play audio synthesis cue
+    // 1. Audio Synthesis Cue
     if (isError) {
       audioEngine.trigger('task_error');
     } else {
       audioEngine.trigger(event, toolName);
     }
 
-    // 2. Compute telemetry stats
+    // 2. Calculate Latency & Update Metrics
     const now = new Date();
     const eventTime = new Date(timestamp);
     const latency = Math.max(0, now - eventTime);
-    
-    metricLatency.textContent = `${latency} ms`;
+    runObj.lastLatency = latency;
+
+    if (runObj.metricsEls.latency) runObj.metricsEls.latency.textContent = `${latency} ms`;
     
     if (metadata) {
       if (metadata.tokens_per_sec !== undefined) {
-        metricSpeed.textContent = `${metadata.tokens_per_sec} t/s`;
+        runObj.lastSpeed = metadata.tokens_per_sec;
+        if (runObj.metricsEls.speed) runObj.metricsEls.speed.textContent = `${metadata.tokens_per_sec} t/s`;
       }
       if (metadata.context_pct !== undefined) {
-        metricContext.textContent = `${metadata.context_pct} %`;
+        runObj.lastContext = metadata.context_pct;
+        if (runObj.metricsEls.context) runObj.metricsEls.context.textContent = `${metadata.context_pct} %`;
       }
-      if (metadata.estimated_cost !== undefined && metricCost) {
-        metricCost.textContent = metadata.estimated_cost;
-      }
-
-      // Update Provenance Badges (REAL-TIME vs LIVE vs EST. COST)
-      const isExact = metadata.is_exact === true;
-      const badgeClass = isExact ? 'metric-badge realtime' : 'metric-badge live';
-      const badgeText = isExact ? 'REAL-TIME' : 'LIVE';
-
-      if (badgeSpeed) {
-        badgeSpeed.className = badgeClass;
-        badgeSpeed.textContent = badgeText;
-      }
-      if (badgeContext) {
-        badgeContext.className = badgeClass;
-        badgeContext.textContent = badgeText;
-      }
-      if (badgeCost) {
-        badgeCost.className = 'metric-badge estimated';
-        badgeCost.textContent = 'EST. COST';
+      if (metadata.estimated_cost !== undefined) {
+        const parsedCost = parseFloat(metadata.estimated_cost.replace(/[^0-9.]/g, ''));
+        if (!isNaN(parsedCost)) runObj.lastCost = parsedCost;
+        if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = metadata.estimated_cost;
       }
     }
 
-    // 3. Update Pipeline Nodes
-    updatePipelineUI(isError ? 'task_error' : event, toolName);
+    // Update single-view focus section if viewing Master Focus ('all') or specific CLI ('effectiveRunId')
+    if (activeTabRunId === 'all' && allRunsSubviewMode === 'focus') {
+      computeMasterFocusMetrics();
+      updateSinglePipelineUI(isError ? 'task_error' : event, toolName);
+    } else if (activeTabRunId === effectiveRunId) {
+      if (metricLatency) metricLatency.textContent = `${latency} ms`;
+      if (metadata) {
+        if (metadata.tokens_per_sec !== undefined && metricSpeed) metricSpeed.textContent = `${metadata.tokens_per_sec} t/s`;
+        if (metadata.context_pct !== undefined && metricContext) metricContext.textContent = `${metadata.context_pct} %`;
+        if (metadata.estimated_cost !== undefined && metricCost) metricCost.textContent = metadata.estimated_cost;
+      }
+      updateSinglePipelineUI(isError ? 'task_error' : event, toolName);
+    }
 
-    // 4. Log to Console Feed
-    appendEventToConsole(event, message, metadata, isError);
+
+    // 3. Update Pipeline Nodes for this run's card
+    updateRunPipelineUI(runObj, isError ? 'task_error' : event, toolName);
+
+    // 4. Log to Dedicated Run Console Feed & Global Combined Feed
+    appendEventToConsole(runObj, event, message, metadata, isError);
   }
 
-  // Updates pipeline active/error classes
-  function updatePipelineUI(activeEvent, toolName) {
-    // Clear previous state classes
-    Object.values(nodes).forEach(node => {
+  function updateSinglePipelineUI(activeEvent, toolName) {
+    Object.values(singleNodes).forEach(node => {
       if (node) node.classList.remove('active', 'error');
     });
 
     if (activeEvent === 'task_error') {
-      // Light up all nodes in ruby error mode
-      Object.values(nodes).forEach(node => {
+      Object.values(singleNodes).forEach(node => {
         if (node) node.classList.add('error');
       });
     } else if (activeEvent === 'executing_tool') {
-      // Differentiate tool execution into Reading, Writing, Terminal, and MCP nodes
-      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'get_screen', 'list_screens'].includes(toolName))) {
-        if (nodes.mcp) nodes.mcp.classList.add('active');
-      } else if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
-        if (nodes.reading) nodes.reading.classList.add('active');
-      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
-        if (nodes.writing) nodes.writing.classList.add('active');
+      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text'].includes(toolName))) {
+        if (singleNodes.mcp) singleNodes.mcp.classList.add('active');
+      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content'].includes(toolName)) {
+        if (singleNodes.writing) singleNodes.writing.classList.add('active');
       } else if (toolName === 'run_command') {
-        if (nodes.terminal) nodes.terminal.classList.add('active');
+        if (singleNodes.terminal) singleNodes.terminal.classList.add('active');
       } else {
-        if (nodes.reading) nodes.reading.classList.add('active');
+        if (singleNodes.reading) singleNodes.reading.classList.add('active');
       }
-    } else if (nodes[activeEvent]) {
-      nodes[activeEvent].classList.add('active');
+    } else if (singleNodes[activeEvent]) {
+      singleNodes[activeEvent].classList.add('active');
     }
   }
 
-  // Checks if a command output contains an error
   function isCommandFailure(message, metadata) {
     if (!message) return false;
     if (metadata && metadata.target) {
@@ -354,7 +640,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return false;
   }
 
-  // Extracts error snippet for concise summaries
   function extractErrorSnippet(message) {
     if (!message) return 'Execution error';
     const lines = message.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -370,125 +655,60 @@ document.addEventListener('DOMContentLoaded', () => {
     return 'Command failed';
   }
 
-  // Helper to extract a concise, user-friendly summary of a tool command output or file action
-  // Helper to extract a concise, user-friendly summary of a tool command output or file action
-  function getEventSummary(event, message, metadata) {
+  function getEventSummary(event, message, metadata, runObj) {
     if (!message) return '';
     
     if (metadata) {
-      // 1. Terminal Command Execution
       if (metadata.tool_name === 'run_command') {
-        if (message.startsWith('Executing terminal command:')) {
-          return message;
-        }
-        const cmdName = lastRunningCommand || metadata.target || 'command';
+        if (message.startsWith('Executing terminal command:')) return message;
+        const cmdName = runObj ? runObj.lastRunningCommand : (metadata.target || 'command');
         const isError = isCommandFailure(message, metadata);
-        if (isError) {
-          const errorSnippet = extractErrorSnippet(message);
-          return `ran ${cmdName} (Failed: ${errorSnippet})`;
-        }
-        return `ran ${cmdName}`;
+        return isError ? `ran ${cmdName} (Failed: ${extractErrorSnippet(message)})` : `ran ${cmdName}`;
       }
 
-      // 2. Code Action & File Modifications
       if (['code_action', 'replace_file_content', 'write_to_file', 'multi_replace_file_content'].includes(metadata.tool_name)) {
-        if (message.startsWith('Writing changes to file:') || message.startsWith('Modifying flex layout')) {
-          return message;
-        }
+        if (message.startsWith('Writing changes to file:')) return message;
 
-        // Match "Created file file:///..." or "Created file C:/..."
         const createdMatch = message.match(/Created file (?:file:\/\/\/)?([^\s\n\r]+)/i);
         if (createdMatch) {
-          let rawPath = createdMatch[1].replace(/with$/, '').trim();
-          rawPath = rawPath.replace(/\\/g, '/');
-          const basename = rawPath.split('/').pop();
-          return `Created file ${basename} at ${rawPath}`;
+          let rawPath = createdMatch[1].replace(/with$/, '').trim().replace(/\\/g, '/');
+          return `Created file ${rawPath.split('/').pop()} at ${rawPath}`;
         }
 
-        // Match "The following changes were made by ... to: C:\path\file"
         const modifiedMatch = message.match(/to:\s*(.+?)(?:\.\s*If relevant|\.[\r\n]|\.$|[\r\n]|$)/i);
         if (modifiedMatch) {
-          let rawPath = modifiedMatch[1].trim();
-          rawPath = rawPath.replace(/\\/g, '/');
-          const basename = rawPath.split('/').pop();
-          return `Modified file ${basename} at ${rawPath}`;
+          let rawPath = modifiedMatch[1].trim().replace(/\\/g, '/');
+          return `Modified file ${rawPath.split('/').pop()} at ${rawPath}`;
         }
 
-        // Match git diff headers or code snippets
-        if (message.startsWith('---') || message.startsWith('+++') || message.includes('[diff_block_start]')) {
-          const fileMatch = message.match(/\+\+\+\s+([^\s\n\r]+)/);
-          const targetFile = fileMatch ? fileMatch[1] : (lastEditingFile || 'file');
-          const basename = targetFile.split('/').pop().split('\\').pop();
-          const fullPath = lastEditingFile || targetFile;
-          return `Modified file ${basename} at ${fullPath}`;
-        }
-
-        const fileName = metadata.target ? metadata.target.split('/').pop().split('\\').pop() : (lastEditingFile ? lastEditingFile.split('/').pop().split('\\').pop() : 'file');
-        const fullPath = metadata.target || lastEditingFile || fileName;
-        return `Modified file ${fileName} at ${fullPath}`;
+        const fileName = metadata.target ? metadata.target.split('/').pop().split('\\').pop() : 'file';
+        return `Modified file ${fileName}`;
       }
 
-      // 3. Reading File Contents
       if (metadata.tool_name === 'view_file') {
-        if (message.startsWith('Reading file:')) {
-          return message;
-        }
-        const fileName = metadata.target ? metadata.target.split('/').pop().split('\\').pop() : (lastReadingFile ? lastReadingFile.split('/').pop().split('\\').pop() : 'file');
-        const fullPath = metadata.target || lastReadingFile || fileName;
-        return `Read file content: ${fileName} at ${fullPath}`;
-      }
-
-      // 4. Directory Listing
-      if (metadata.tool_name === 'list_directory' || metadata.tool_name === 'list_dir') {
-        if (message.startsWith('Listing files in directory:')) {
-          return message;
-        }
-        const dirName = metadata.target ? metadata.target.split('/').pop().split('\\').pop() : 'directory';
-        return `Listed directory: ${dirName}`;
-      }
-
-      // 5. Grep Search
-      if (metadata.tool_name === 'grep_search') {
-        if (message.startsWith('Searching pattern')) {
-          return message;
-        }
-        return `Search matches in workspace`;
+        if (message.startsWith('Reading file:')) return message;
+        const fileName = metadata.target ? metadata.target.split('/').pop().split('\\').pop() : 'file';
+        return `Read file content: ${fileName}`;
       }
     }
 
-    // Default fallback: If message looks like code or diff, NEVER display raw code as the summary
-    if (message.includes(';') || message.includes('{') || message.includes('function') || message.includes('class') || message.includes('<!DOCTYPE') || message.includes('import ') || message.includes('const ') || message.includes('let ') || message.includes('[diff_block_start]')) {
-      const fileName = lastEditingFile ? lastEditingFile.split('/').pop().split('\\').pop() : 'code';
-      return `Code block: ${fileName}`;
+    if (message.includes(';') || message.includes('{') || message.includes('function') || message.includes('<!DOCTYPE') || message.includes('const ')) {
+      return `Code block output`;
     }
 
-    // Default fallback: extract the first non-empty line of the message
     const lines = message.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length > 0) {
       let firstLine = lines[0];
-      if (firstLine.length > 100) {
-        firstLine = firstLine.substring(0, 97) + '...';
-      }
-      return firstLine;
+      return firstLine.length > 100 ? firstLine.substring(0, 97) + '...' : firstLine;
     }
-    return 'Detailed tool output';
+    return 'Detailed output';
   }
 
-  // Simple HTML escaping helper to prevent script or layout injection in console
   function escapeHtml(text) {
     if (!text) return '';
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
   }
 
-  let lastLoggedEvent = '';
-  let lastLoggedMessage = '';
-
-  // Helper to format tool names into Title Case for badges (e.g., run_command -> Run Command, list_dir -> List Dir)
   function formatToolBadgeName(toolName) {
     if (!toolName) return '';
     const customMap = {
@@ -497,164 +717,146 @@ document.addEventListener('DOMContentLoaded', () => {
       'list_directory': 'List Directory',
       'run_command': 'Run Command',
       'view_file': 'View File',
-      'write_to_file': 'Write To File',
-      'replace_file_content': 'Replace File Content',
-      'multi_replace_file_content': 'Multi Replace File Content',
+      'write_to_file': 'Write File',
+      'replace_file_content': 'Edit File',
+      'multi_replace_file_content': 'Multi Edit',
       'grep_search': 'Grep Search',
       'search_web': 'Search Web',
-      'read_url_content': 'Read URL Content',
-      'create_project': 'Create Project',
-      'get_project': 'Get Project',
-      'get_screen': 'Get Screen',
-      'generate_screen_from_text': 'Generate Screen From Text',
-      'generate_variants': 'Generate Variants',
-      'edit_screens': 'Edit Screens'
+      'generate_screen_from_text': 'Stitch Screen Gen'
     };
-
-    if (customMap[toolName]) {
-      return customMap[toolName];
-    }
-
-    return toolName
-      .replace(/_/g, ' ')
-      .replace(/-/g, ' ')
-      .replace(/\b\w/g, char => char.toUpperCase());
+    return customMap[toolName] || toolName.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
   }
 
-  // Formats and appends console logs
-  function appendEventToConsole(event, message, metadata, isError = false) {
+  // Build and Append Console Row
+  function appendEventToConsole(runObj, event, message, metadata, isError = false) {
     if (!message) return;
 
-    // Deduplicate consecutive identical task_done and system-msg logs
-    if (['task_done', 'system-msg'].includes(event) && event === lastLoggedEvent && message === lastLoggedMessage) {
-      return;
-    }
-    lastLoggedEvent = event;
-    lastLoggedMessage = message;
-
     const isCollapsible = message && (message.includes('\n') || message.length > 120);
-
     const toolName = metadata ? metadata.tool_name : '';
     let categoryType = event;
-    if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens'].includes(toolName))) {
+    if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project'].includes(toolName))) {
       categoryType = 'mcp';
     } else if (toolName === 'run_command') {
       categoryType = 'terminal';
     }
 
-    const row = document.createElement('div');
-    row.className = `console-row ${isError ? 'error-run task_error' : event}`;
-    row.dataset.eventType = categoryType;
-    if (isCollapsible) {
-      row.classList.add('collapsible', 'collapsed');
-    }
+    // Function to construct row element
+    const createRow = (includeRunBadge = false) => {
+      const row = document.createElement('div');
+      row.className = `console-row ${isError ? 'error-run task_error' : event}`;
+      row.dataset.eventType = categoryType;
+      row.dataset.runId = runObj ? runObj.run_id : '';
+      if (isCollapsible) row.classList.add('collapsible', 'collapsed');
 
-    const timestampSpan = document.createElement('span');
-    timestampSpan.className = 'timestamp';
-    timestampSpan.textContent = `[${new Date().toTimeString().split(' ')[0]}]`;
+      const timestampSpan = document.createElement('span');
+      timestampSpan.className = 'timestamp';
+      timestampSpan.textContent = `[${new Date().toTimeString().split(' ')[0]}]`;
 
-    if (isCollapsible) {
-      // Create horizontal summary container
-      const summaryDiv = document.createElement('div');
-      summaryDiv.className = 'console-row-summary';
-      
-      // Append timestamp to summary container
-      summaryDiv.appendChild(timestampSpan);
+      if (isCollapsible) {
+        const summaryDiv = document.createElement('div');
+        summaryDiv.className = 'console-row-summary';
+        summaryDiv.appendChild(timestampSpan);
 
-      // Toggle button
-      const toggleBtn = document.createElement('button');
-      toggleBtn.className = 'collapse-toggle-btn';
-      toggleBtn.innerHTML = '<span class="toggle-arrow">▶</span>';
-      summaryDiv.appendChild(toggleBtn);
-
-      const summarySpan = document.createElement('span');
-      summarySpan.className = 'message summary-text';
-      
-      const summaryText = getEventSummary(event, message, metadata);
-      let htmlContent = escapeHtml(summaryText);
-
-      // Attach metadata badges if present
-      if (metadata) {
-        if (metadata.tool_name) {
-          const toolBadge = formatToolBadgeName(metadata.tool_name);
-          htmlContent = `<span class="badge badge-tool">${escapeHtml(toolBadge)}</span> ` + htmlContent;
+        if (includeRunBadge && runObj) {
+          const runBadge = document.createElement('span');
+          runBadge.className = 'badge badge-run';
+          runBadge.style.borderColor = runObj.color;
+          runBadge.style.color = runObj.color;
+          runBadge.textContent = runObj.run_name;
+          summaryDiv.appendChild(runBadge);
         }
-        if (metadata.target) {
-          htmlContent += ` <span class="badge badge-target">${escapeHtml(metadata.target)}</span>`;
-        }
-      }
-      summarySpan.innerHTML = htmlContent;
-      summaryDiv.appendChild(summarySpan);
-      row.appendChild(summaryDiv);
 
-      // Details block (sibling to the summary line)
-      const detailsDiv = document.createElement('div');
-      detailsDiv.className = 'console-row-details';
-      const pre = document.createElement('pre');
-      const code = document.createElement('code');
-      code.textContent = message;
-      pre.appendChild(code);
-      detailsDiv.appendChild(pre);
-      row.appendChild(detailsDiv);
+        const toggleBtn = document.createElement('button');
+        toggleBtn.className = 'collapse-toggle-btn';
+        toggleBtn.innerHTML = '<span class="toggle-arrow">▶</span>';
+        summaryDiv.appendChild(toggleBtn);
 
-      // Click to toggle handler
-      const toggleHandler = (e) => {
-        // Prevent toggle if text selection is active to allow copying text inside details/summary
-        if (window.getSelection().toString()) return;
+        const summarySpan = document.createElement('span');
+        summarySpan.className = 'message summary-text';
         
-        const isExpanded = row.classList.contains('expanded');
-        if (isExpanded) {
-          row.classList.remove('expanded');
-          row.classList.add('collapsed');
-        } else {
-          row.classList.add('expanded');
-          row.classList.remove('collapsed');
+        const summaryText = getEventSummary(event, message, metadata, runObj);
+        let htmlContent = escapeHtml(summaryText);
+
+        if (metadata) {
+          if (metadata.tool_name) htmlContent = `<span class="badge badge-tool">${escapeHtml(formatToolBadgeName(metadata.tool_name))}</span> ` + htmlContent;
+          if (metadata.target) htmlContent += ` <span class="badge badge-target">${escapeHtml(metadata.target)}</span>`;
         }
-      };
+        summarySpan.innerHTML = htmlContent;
+        summaryDiv.appendChild(summarySpan);
+        row.appendChild(summaryDiv);
 
-      // Toggle details expansion on clicking the summary header
-      summaryDiv.addEventListener('click', toggleHandler);
+        const detailsDiv = document.createElement('div');
+        detailsDiv.className = 'console-row-details';
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = message;
+        pre.appendChild(code);
+        detailsDiv.appendChild(pre);
+        row.appendChild(detailsDiv);
 
-    } else {
-      row.appendChild(timestampSpan);
+        summaryDiv.addEventListener('click', () => {
+          if (window.getSelection().toString()) return;
+          row.classList.toggle('expanded');
+          row.classList.toggle('collapsed');
+        });
+      } else {
+        row.appendChild(timestampSpan);
 
-      // Spacer placeholder to align non-collapsible logs
-      const placeholder = document.createElement('span');
-      placeholder.className = 'collapse-toggle-placeholder';
-      row.appendChild(placeholder);
-
-      const messageSpan = document.createElement('span');
-      messageSpan.className = 'message';
-      
-      let htmlContent = escapeHtml(message);
-
-      // Attach metadata badges if present
-      if (metadata) {
-        if (metadata.tool_name) {
-          const toolBadge = formatToolBadgeName(metadata.tool_name);
-          htmlContent = `<span class="badge badge-tool">${escapeHtml(toolBadge)}</span> ` + htmlContent;
+        if (includeRunBadge && runObj) {
+          const runBadge = document.createElement('span');
+          runBadge.className = 'badge badge-run';
+          runBadge.style.borderColor = runObj.color;
+          runBadge.style.color = runObj.color;
+          runBadge.textContent = runObj.run_name;
+          row.appendChild(runBadge);
         }
-        if (metadata.target) {
-          htmlContent += ` <span class="badge badge-target">${escapeHtml(metadata.target)}</span>`;
+
+        const placeholder = document.createElement('span');
+        placeholder.className = 'collapse-toggle-placeholder';
+        row.appendChild(placeholder);
+
+        const messageSpan = document.createElement('span');
+        messageSpan.className = 'message';
+        let htmlContent = escapeHtml(message);
+
+        if (metadata) {
+          if (metadata.tool_name) htmlContent = `<span class="badge badge-tool">${escapeHtml(formatToolBadgeName(metadata.tool_name))}</span> ` + htmlContent;
+          if (metadata.target) htmlContent += ` <span class="badge badge-target">${escapeHtml(metadata.target)}</span>`;
         }
+        messageSpan.innerHTML = htmlContent;
+        row.appendChild(messageSpan);
       }
 
-      messageSpan.innerHTML = htmlContent;
-      row.appendChild(messageSpan);
+      return row;
+    };
+
+    // 1. Append to Scoped Run Console Viewport
+    if (runObj && runObj.consoleEl) {
+      const runRow = createRow(false);
+      runObj.consoleEl.appendChild(runRow);
+      runObj.consoleEl.scrollTop = runObj.consoleEl.scrollHeight;
     }
 
-    consoleFeed.appendChild(row);
-    applyLogFilters();
-    if (isAutoscroll) {
-      consoleFeed.scrollTop = consoleFeed.scrollHeight;
+    // 2. Append to Single View / Global Console Viewport
+    if (consoleFeed) {
+      const globalRow = createRow(true);
+      consoleFeed.appendChild(globalRow);
+      applyLogFilters();
+      if (isAutoscroll) consoleFeed.scrollTop = consoleFeed.scrollHeight;
     }
   }
 
-  // System diagnostic console logging
+
   function appendSystemMessage(msg) {
-    appendEventToConsole('system-msg', msg, null);
+    if (consoleFeed) {
+      const row = document.createElement('div');
+      row.className = 'console-row system-msg';
+      row.innerHTML = `<span class="timestamp">[${new Date().toTimeString().split(' ')[0]}]</span> <span class="message">${escapeHtml(msg)}</span>`;
+      consoleFeed.appendChild(row);
+    }
   }
 
-  // Kickstart WebSockets
+  // Start WebSockets
   connect();
 });
+

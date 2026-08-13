@@ -26,10 +26,12 @@ Built to run entirely on your local machine (`localhost`), it features programma
 
 ```text
 Orchestrate Live/
+├── test/
+│   ├── demo_telemetry.js       # Demo telemetry stream script
+│   └── simulate_multirun.js    # Multi-run parallel CLI telemetry simulation script
 ├── server/
 │   ├── package.json            # Node project configuration & dependencies (Express, ws)
-│   ├── server.js               # Express & WebSocket bridge server
-│   └── simulate.js             # Local CLI agent telemetry simulation script
+│   └── server.js               # Express & WebSocket bridge server
 ├── public/
 │   ├── index.html              # Dashboard frontend HTML structure
 │   ├── style.css               # Dark theme (Obsidian-inspired) and glowing animations
@@ -73,20 +75,22 @@ Open your web browser and navigate to:
 
 ## ⚙️ Running Telemetry Simulations
 
-You can simulate a running AI coding agent sending live updates to test both successful operations and error handling.
+You can simulate running AI coding agents sending parallel updates to test multi-run views and error handling.
 
-### Success Flow Simulation
-Run the simulator to step through standard agent states (`thinking` → `planning` → `executing_tool` → `task_done`):
+### Parallel Multi-Run Simulation
+Run the multi-run simulator to step through parallel agent telemetry (`CLI 1 - Backend Refactor` & `CLI 2 - Stitch MCP Worker`):
 ```bash
-node server/simulate.js
+npm run simulate:multi
+# or directly: node test/simulate_multirun.js
 ```
-*   *Watch the pipeline map light up step-by-step and listen to the distinct audio cue as each phase triggers.*
 
-### Error Flow Simulation
-Run the simulator with the `--error` flag to test database migration failures, ending with a warning chime and global error UI states:
+### Demo Telemetry Stream
+Run the demo script:
 ```bash
-node server/simulate.js --error
+npm run demo
+# or directly: node test/demo_telemetry.js
 ```
+
 
 ---
 

@@ -40,6 +40,12 @@ server.on('upgrade', (request, socket, head) => {
 wss.on('connection', (wsClient, request) => {
   console.log(`[WebSocket] Client connected from ${request.socket.remoteAddress}`);
   
+  // Send initial state of active runs to newly connected client
+  wsClient.send(JSON.stringify({
+    type: 'init_runs',
+    runs: Object.values(runsState)
+  }));
+
   wsClient.on('close', () => {
     console.log('[WebSocket] Client disconnected');
   });
@@ -53,6 +59,107 @@ wss.on('connection', (wsClient, request) => {
 function isValidEvent(event) {
   const allowedEvents = ['thinking', 'planning', 'executing_tool', 'task_done', 'task_error'];
   return allowedEvents.includes(event);
+}
+
+// Color Palette for Multi-Run Visual Badges
+const RUN_COLORS = [
+  '#00f5ff', // Cyan
+  '#a855f7', // Electric Violet
+  '#10b981', // Emerald Teal
+  '#f59e0b', // Amber
+  '#ec4899', // Hot Pink
+  '#3b82f6'  // Sapphire Blue
+];
+let runColorIdx = 0;
+
+// Multi-Run Telemetry State Store
+const runsState = {};
+
+function getOrCreateRunState(runId, runNameHint) {
+  if (!runId) runId = 'cli-main';
+
+  if (!runsState[runId]) {
+    const color = RUN_COLORS[runColorIdx % RUN_COLORS.length];
+    runColorIdx++;
+
+    let displayName = runNameHint || runId;
+    if (displayName.length > 22 && /^[a-f0-9-]+$/i.test(displayName)) {
+      displayName = `CLI (${displayName.substring(0, 8)})`;
+    }
+
+    runsState[runId] = {
+      run_id: runId,
+      run_name: displayName,
+      color: color,
+      sessionInputChars: 0,
+      sessionOutputChars: 0,
+      sessionExactInputTokens: 0,
+      sessionExactOutputTokens: 0,
+      hasExactUsageData: false,
+      lastStepTimestamp: null,
+      lastCalculatedSpeed: 45,
+      lastBroadcastedEvent: null,
+      lastActivityTime: Date.now()
+    };
+  } else if (runNameHint && runsState[runId].run_name !== runNameHint) {
+    runsState[runId].run_name = runNameHint;
+  }
+
+  runsState[runId].lastActivityTime = Date.now();
+  return runsState[runId];
+}
+
+// Compute metrics per run
+function computeLiveMetricsForRun(runId, step) {
+  const runState = getOrCreateRunState(runId);
+  let isStepExact = false;
+  let stepInTokens = 0;
+  let stepOutTokens = 0;
+
+  const usageObj = step.usage || (step.message && step.message.usage) || (step.metadata && step.metadata.usage);
+  if (usageObj && (typeof usageObj.input_tokens === 'number' || typeof usageObj.prompt_tokens === 'number')) {
+    isStepExact = true;
+    runState.hasExactUsageData = true;
+    stepInTokens = usageObj.input_tokens || usageObj.prompt_tokens || 0;
+    stepOutTokens = usageObj.output_tokens || usageObj.completion_tokens || 0;
+    runState.sessionExactInputTokens += stepInTokens;
+    runState.sessionExactOutputTokens += stepOutTokens;
+  } else {
+    const contentChars = (step.content || '').length;
+    const thinkingChars = (step.thinking || '').length;
+    const toolCallsChars = JSON.stringify(step.tool_calls || '').length;
+
+    if (step.source === 'USER_EXPLICIT' || ['RUN_COMMAND', 'VIEW_FILE', 'LIST_DIRECTORY', 'GREP_SEARCH', 'SEARCH_WEB', 'READ_URL_CONTENT'].includes(step.type)) {
+      runState.sessionInputChars += contentChars;
+    } else {
+      runState.sessionOutputChars += contentChars + thinkingChars + toolCallsChars;
+    }
+  }
+
+  const now = step.created_at ? new Date(step.created_at).getTime() : Date.now();
+  if (runState.lastStepTimestamp) {
+    const elapsedSec = Math.max(0.4, (now - runState.lastStepTimestamp) / 1000);
+    const stepTokens = isStepExact ? (stepInTokens + stepOutTokens) : Math.max(10, Math.round(((step.content || '').length + (step.thinking || '').length) / 4));
+    if (elapsedSec < 30) {
+      runState.lastCalculatedSpeed = Math.min(180, Math.max(15, Math.round(stepTokens / elapsedSec)));
+    }
+  }
+  runState.lastStepTimestamp = now;
+
+  const totalInTokens = runState.hasExactUsageData ? runState.sessionExactInputTokens : Math.round(runState.sessionInputChars / 4);
+  const totalOutTokens = runState.hasExactUsageData ? runState.sessionExactOutputTokens : Math.round(runState.sessionOutputChars / 4);
+  const totalTokens = totalInTokens + totalOutTokens;
+  const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / 1000000) * 100 * 10) / 10));
+
+  const cost = (totalInTokens / 1000000) * 0.15 + (totalOutTokens / 1000000) * 0.60;
+  const estimatedCost = `${runState.hasExactUsageData ? '$' : '~$ '}${cost.toFixed(4)}`;
+
+  return {
+    is_exact: runState.hasExactUsageData,
+    tokens_per_sec: runState.lastCalculatedSpeed,
+    context_pct: contextPct,
+    estimated_cost: estimatedCost
+  };
 }
 
 // Broadcast to all active WebSocket clients
@@ -69,9 +176,14 @@ function broadcastTelemetry(telemetryData) {
   return clientsNotified;
 }
 
-// POST endpoint for Telemetry Logs (for backwards compatibility/manual triggers)
+// REST GET endpoint for active runs list
+app.get('/api/runs', (req, res) => {
+  return res.status(200).json({ runs: Object.values(runsState) });
+});
+
+// POST endpoint for Telemetry Logs (Supports Multi-Run)
 app.post('/api/telemetry', (req, res) => {
-  const { event, message, timestamp, metadata } = req.body;
+  const { event, message, timestamp, metadata, run_id, run_name } = req.body;
 
   if (!event || !message) {
     return res.status(400).json({ error: 'Missing required fields: event and message are required.' });
@@ -81,19 +193,38 @@ app.post('/api/telemetry', (req, res) => {
     return res.status(400).json({ error: `Invalid event type: "${event}".` });
   }
 
+  const effectiveRunId = run_id || (metadata && metadata.run_id) || 'cli-main';
+  const effectiveRunName = run_name || (metadata && metadata.run_name) || (effectiveRunId === 'cli-main' ? 'CLI 1 - Main' : effectiveRunId);
+  const runState = getOrCreateRunState(effectiveRunId, effectiveRunName);
+
+  // Compute live metrics if metadata is provided or step payload
+  let computedMetadata = metadata || {};
+  if (!computedMetadata.tokens_per_sec || !computedMetadata.context_pct) {
+    const liveMetrics = computeLiveMetricsForRun(effectiveRunId, {
+      content: message,
+      created_at: timestamp
+    });
+    computedMetadata = { ...computedMetadata, ...liveMetrics };
+  }
+
+  runState.lastBroadcastedEvent = event;
+
   const telemetryData = {
+    run_id: effectiveRunId,
+    run_name: runState.run_name,
+    run_color: runState.color,
     timestamp: timestamp || new Date().toISOString(),
     event,
     message,
-    metadata: metadata || {}
+    metadata: computedMetadata
   };
 
   const clientsNotified = broadcastTelemetry(telemetryData);
-  console.log(`[HTTP Telemetry] Broadcast event "${event}" to ${clientsNotified} client(s): "${message}"`);
-  return res.status(200).json({ status: 'success', clientsNotified });
+  console.log(`[HTTP Telemetry] Broadcast [${runState.run_name}] event "${event}" to ${clientsNotified} client(s): "${message.substring(0, 60)}"`);
+  return res.status(200).json({ status: 'success', run_id: effectiveRunId, clientsNotified });
 });
 
-// --- TRANSCRIPT LOG WATCHER ENGINE ---
+// --- TRANSCRIPT LOG WATCHER ENGINE (MULTI-RUN SUPPORT) ---
 
 function getBrainDir() {
   const customPath = 'C:\\Users\\rakes\\.gemini\\antigravity-cli\\brain';
@@ -106,119 +237,86 @@ function getBrainDir() {
   return null;
 }
 
-function getLatestTranscriptPath() {
+// Track watched files and line remainders per transcript path
+const watchedTranscripts = {};
+let fileWatcherInterval = null;
+
+function scanAndProcessTranscripts() {
   const brainDir = getBrainDir();
-  if (!brainDir) return null;
+  if (!brainDir) return;
 
   try {
     const folders = fs.readdirSync(brainDir);
-    let latestFile = null;
-    let latestMtime = 0;
 
     folders.forEach(folder => {
       const transcriptPath = path.join(brainDir, folder, '.system_generated/logs/transcript.jsonl');
-      if (fs.existsSync(transcriptPath)) {
-        const stat = fs.statSync(transcriptPath);
-        if (stat.mtimeMs > latestMtime) {
-          latestMtime = stat.mtimeMs;
-          latestFile = transcriptPath;
+      if (!fs.existsSync(transcriptPath)) return;
+
+      const runId = `conv-${folder}`;
+      let shortFolder = folder.length > 12 ? folder.substring(0, 8) : folder;
+      const runName = `CLI (${shortFolder})`;
+
+      if (!watchedTranscripts[transcriptPath]) {
+        try {
+          const stat = fs.statSync(transcriptPath);
+          watchedTranscripts[transcriptPath] = {
+            run_id: runId,
+            run_name: runName,
+            currentFileSize: stat.size,
+            lineRemainder: ''
+          };
+          console.log(`[MultiWatcher] Registered transcript watcher for [${runName}]: ${transcriptPath} (${stat.size} bytes)`);
+        } catch (err) {
+          console.error('[MultiWatcher] Error statting file:', err);
         }
+        return;
+      }
+
+      const watched = watchedTranscripts[transcriptPath];
+      try {
+        const stat = fs.statSync(transcriptPath);
+
+        if (stat.size > watched.currentFileSize) {
+          const stream = fs.createReadStream(transcriptPath, {
+            start: watched.currentFileSize,
+            end: stat.size - 1
+          });
+
+          let chunk = '';
+          stream.on('data', data => { chunk += data.toString(); });
+          stream.on('end', () => {
+            watched.currentFileSize = stat.size;
+            processTranscriptChunk(chunk, watched.run_id, watched.run_name, watched);
+          });
+        } else if (stat.size < watched.currentFileSize) {
+          watched.currentFileSize = stat.size;
+        }
+      } catch (err) {
+        console.error('[MultiWatcher] Error checking file updates:', err);
       }
     });
-
-    return latestFile;
   } catch (err) {
-    console.error('[Transcript Watcher] Error scanning brain directory:', err);
-    return null;
+    console.error('[MultiWatcher] Error scanning brain directory:', err);
   }
 }
 
-let activeTranscriptFile = null;
-let currentFileSize = 0;
-let fileWatcherInterval = null;
-let lineRemainder = '';
-
-// Keeps track of the last broadcasted state to prevent spamming the client
-let lastBroadcastedEvent = null;
-
-// Telemetry Live Metrics Accumulator
-let sessionInputChars = 0;
-let sessionOutputChars = 0;
-let sessionExactInputTokens = 0;
-let sessionExactOutputTokens = 0;
-let hasExactUsageData = false;
-let lastStepTimestamp = null;
-let lastCalculatedSpeed = 45;
-
-function computeLiveMetrics(step) {
-  let isStepExact = false;
-  let stepInTokens = 0;
-  let stepOutTokens = 0;
-
-  // 1. Check for explicit usage objects in logs (e.g. Claude Code or OpenAI formats)
-  const usageObj = step.usage || (step.message && step.message.usage) || (step.metadata && step.metadata.usage);
-  if (usageObj && (typeof usageObj.input_tokens === 'number' || typeof usageObj.prompt_tokens === 'number')) {
-    isStepExact = true;
-    hasExactUsageData = true;
-    stepInTokens = usageObj.input_tokens || usageObj.prompt_tokens || 0;
-    stepOutTokens = usageObj.output_tokens || usageObj.completion_tokens || 0;
-    sessionExactInputTokens += stepInTokens;
-    sessionExactOutputTokens += stepOutTokens;
-  } else {
-    // 2. Character-based estimation (Antigravity / JSONL conversation steps)
-    const contentChars = (step.content || '').length;
-    const thinkingChars = (step.thinking || '').length;
-    const toolCallsChars = JSON.stringify(step.tool_calls || '').length;
-
-    if (step.source === 'USER_EXPLICIT' || ['RUN_COMMAND', 'VIEW_FILE', 'LIST_DIRECTORY', 'GREP_SEARCH', 'SEARCH_WEB', 'READ_URL_CONTENT'].includes(step.type)) {
-      sessionInputChars += contentChars;
-    } else {
-      sessionOutputChars += contentChars + thinkingChars + toolCallsChars;
-    }
-  }
-
-  // Calculate live token speed
-  const now = step.created_at ? new Date(step.created_at).getTime() : Date.now();
-  if (lastStepTimestamp) {
-    const elapsedSec = Math.max(0.4, (now - lastStepTimestamp) / 1000);
-    const stepTokens = isStepExact ? (stepInTokens + stepOutTokens) : Math.max(10, Math.round(((step.content || '').length + (step.thinking || '').length) / 4));
-    if (elapsedSec < 30) {
-      lastCalculatedSpeed = Math.min(180, Math.max(15, Math.round(stepTokens / elapsedSec)));
-    }
-  }
-  lastStepTimestamp = now;
-
-  // Context %: total tokens / 1M token limit
-  const totalInTokens = hasExactUsageData ? sessionExactInputTokens : Math.round(sessionInputChars / 4);
-  const totalOutTokens = hasExactUsageData ? sessionExactOutputTokens : Math.round(sessionOutputChars / 4);
-  const totalTokens = totalInTokens + totalOutTokens;
-  const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / 1000000) * 100 * 10) / 10));
-
-  // Cost: Input ~$0.15 / 1M tokens, Output ~$0.60 / 1M tokens
-  const cost = (totalInTokens / 1000000) * 0.15 + (totalOutTokens / 1000000) * 0.60;
-  const estimatedCost = `${hasExactUsageData ? '$' : '~$ '}${cost.toFixed(4)}`;
-
-  return {
-    is_exact: hasExactUsageData,
-    tokens_per_sec: lastCalculatedSpeed,
-    context_pct: contextPct,
-    estimated_cost: estimatedCost
-  };
-}
-
-function parseStepAndBroadcast(step) {
+function parseStepAndBroadcastMulti(step, runId, runName) {
   const timestamp = step.created_at || new Date().toISOString();
-  const liveMetrics = computeLiveMetrics(step);
+  const liveMetrics = computeLiveMetricsForRun(runId, step);
+  const runState = getOrCreateRunState(runId, runName);
 
   // 1. User sends a new request
   if (step.source === 'USER_EXPLICIT' && step.type === 'USER_INPUT') {
     broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
       timestamp,
       event: 'planning',
       message: `User Request Received:\n${step.content}`,
       metadata: { ...liveMetrics }
     });
-    lastBroadcastedEvent = 'planning';
+    runState.lastBroadcastedEvent = 'planning';
     return;
   }
 
@@ -226,12 +324,15 @@ function parseStepAndBroadcast(step) {
   let hasThinking = false;
   if (step.thinking && step.thinking.trim()) {
     broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
       timestamp,
       event: 'thinking',
       message: step.thinking.trim(),
       metadata: { ...liveMetrics }
     });
-    lastBroadcastedEvent = 'thinking';
+    runState.lastBroadcastedEvent = 'thinking';
     hasThinking = true;
   }
 
@@ -278,6 +379,9 @@ function parseStepAndBroadcast(step) {
         }
 
         broadcastTelemetry({
+          run_id: runId,
+          run_name: runState.run_name,
+          run_color: runState.color,
           timestamp,
           event: 'executing_tool',
           message: msg,
@@ -287,12 +391,12 @@ function parseStepAndBroadcast(step) {
             target: target || undefined
           }
         });
-        lastBroadcastedEvent = 'executing_tool';
+        runState.lastBroadcastedEvent = 'executing_tool';
       });
     };
 
     if (hasThinking) {
-      setTimeout(broadcastTools, 1500);
+      setTimeout(broadcastTools, 1200);
     } else {
       broadcastTools();
     }
@@ -300,7 +404,6 @@ function parseStepAndBroadcast(step) {
 
   // 4. Command outputs & execution logs
   if (step.source === 'MODEL' && step.status === 'DONE' && step.content) {
-    // Only broadcast command outputs, file write completions, etc.
     const isToolOutput = [
       'RUN_COMMAND', 
       'CODE_ACTION', 
@@ -314,6 +417,9 @@ function parseStepAndBroadcast(step) {
     
     if (isToolOutput) {
       broadcastTelemetry({
+        run_id: runId,
+        run_name: runState.run_name,
+        run_color: runState.color,
         timestamp,
         event: 'executing_tool',
         message: step.content.trim(),
@@ -323,110 +429,67 @@ function parseStepAndBroadcast(step) {
           target: step.exit_code !== undefined ? `Exit Code: ${step.exit_code}` : undefined
         }
       });
-      lastBroadcastedEvent = 'executing_tool';
+      runState.lastBroadcastedEvent = 'executing_tool';
     }
   }
 
   // 5. Check if execution errored
   if (step.status === 'ERROR') {
     broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
       timestamp,
       event: 'task_error',
       message: `Execution Error: ${step.content || 'Tool invocation aborted.'}`,
       metadata: { ...liveMetrics }
     });
-    lastBroadcastedEvent = 'task_error';
+    runState.lastBroadcastedEvent = 'task_error';
     return;
   }
 
-  // 6. Turn completion: If the MODEL completes its response, and it has no pending tool calls, it means the agent finished the task turn!
+  // 6. Turn completion
   if (step.source === 'MODEL' && step.type === 'PLANNER_RESPONSE' && step.status === 'DONE') {
     const hasToolCalls = step.tool_calls && step.tool_calls.length > 0;
-    if (!hasToolCalls && lastBroadcastedEvent !== 'task_done') {
+    if (!hasToolCalls && runState.lastBroadcastedEvent !== 'task_done') {
       broadcastTelemetry({
+        run_id: runId,
+        run_name: runState.run_name,
+        run_color: runState.color,
         timestamp,
         event: 'task_done',
         message: 'Task turn finished. Awaiting next request...',
         metadata: { ...liveMetrics }
       });
-      lastBroadcastedEvent = 'task_done';
+      runState.lastBroadcastedEvent = 'task_done';
     }
   }
 }
 
-function processChunk(data) {
-  const text = lineRemainder + data;
+function processTranscriptChunk(data, runId, runName, watchedObj) {
+  const text = watchedObj.lineRemainder + data;
   const lines = text.split(/\r?\n/);
-  lineRemainder = lines.pop(); // save incomplete line
+  watchedObj.lineRemainder = lines.pop();
 
   lines.forEach(line => {
     if (!line.trim()) return;
     try {
       const step = JSON.parse(line);
-      parseStepAndBroadcast(step);
+      parseStepAndBroadcastMulti(step, runId, runName);
     } catch (e) {
-      // JSON parse errors are ignored for half-written lines
+      // JSON parse errors ignored for partial lines
     }
   });
 }
 
-function startWatchingTranscript() {
-  activeTranscriptFile = getLatestTranscriptPath();
-  if (activeTranscriptFile) {
-    try {
-      const stat = fs.statSync(activeTranscriptFile);
-      currentFileSize = stat.size; // start watching from current position to avoid spamming historical logs
-      console.log(`[Watcher] Initialized tracking on active transcript: ${activeTranscriptFile} (Size: ${currentFileSize} bytes)`);
-    } catch (err) {
-      console.error('[Watcher] Failed to stat transcript file:', err);
-    }
-  } else {
-    console.log('[Watcher] Scanning... Waiting for active conversation transcript log file.');
-  }
-
+function startMultiTranscriptWatcher() {
+  scanAndProcessTranscripts();
   if (fileWatcherInterval) clearInterval(fileWatcherInterval);
-
-  fileWatcherInterval = setInterval(() => {
-    try {
-      const currentLatest = getLatestTranscriptPath();
-      if (!currentLatest) return;
-
-      // Handle conversation transition
-      if (currentLatest !== activeTranscriptFile) {
-        console.log(`[Watcher] Switched to new active conversation: ${currentLatest}`);
-        activeTranscriptFile = currentLatest;
-        currentFileSize = 0;
-        lineRemainder = '';
-      }
-
-      if (!fs.existsSync(activeTranscriptFile)) return;
-
-      const stat = fs.statSync(activeTranscriptFile);
-      if (stat.size > currentFileSize) {
-        const stream = fs.createReadStream(activeTranscriptFile, {
-          start: currentFileSize,
-          end: stat.size - 1
-        });
-
-        let chunk = '';
-        stream.on('data', data => { chunk += data.toString(); });
-        stream.on('end', () => {
-          currentFileSize = stat.size;
-          processChunk(chunk);
-        });
-      } else if (stat.size < currentFileSize) {
-        // File truncated/reset
-        currentFileSize = stat.size;
-      }
-    } catch (err) {
-      console.error('[Watcher] Error checking file updates:', err);
-    }
-  }, 250);
+  fileWatcherInterval = setInterval(scanAndProcessTranscripts, 250);
 }
 
 // Start listening
 server.listen(port, () => {
   console.log(`[Server] OrchestrateLive Bridge Server listening at http://localhost:${port}`);
-  // Start the workspace transcript watcher
-  startWatchingTranscript();
+  startMultiTranscriptWatcher();
 });
