@@ -23,42 +23,73 @@
         <div id="active-runs-count" class="badge-active-runs">0 Active Runs</div>
       </div>
       <div class="header-right-controls">
+        <button id="reset-dashboard-btn" class="btn btn-reset-toggle" title="Reset all metrics and runs">
+          Reset
+        </button>
         <button id="audio-toggle" class="btn btn-audio-toggle muted">
           <span class="icon">🔇</span> Enable Audio
         </button>
       </div>
     </header>
 
-    <!-- Multi-Run Navigation & View Selector Bar -->
+    <!-- Multi-Run Navigation Bar -->
     <section class="run-tabs-section">
       <div class="run-tabs-nav-wrapper">
         <div class="run-tabs-bar" id="run-tab-bar">
           <button class="run-tab active" data-run-id="all">
             <span class="run-tab-dot" style="background-color: #00f5ff;"></span>
-            <span class="run-tab-label">⚡ All Runs (Parallel)</span>
-          </button>
-        </div>
-        
-        <!-- View Options for All Runs (Parallel default vs Focus) -->
-        <div id="all-runs-subview-toggle" class="subview-toggle-group">
-          <button id="btn-allruns-parallel" class="subview-btn active" title="Side-by-Side Parallel Grid View">
-            <span class="icon">⚡</span> Side-by-Side
-          </button>
-          <button id="btn-allruns-focus" class="subview-btn" title="Master Combined Focus View">
-            <span class="icon">🎯</span> Master Focus
+            <span class="run-tab-label">All Runs</span>
           </button>
         </div>
       </div>
     </section>
 
-
-    <!-- Multi-Run Parallel Split Grid Container -->
-    <section id="multi-run-container" class="multi-run-grid parallel-mode">
-      <!-- Dynamic Run Cards will be rendered here by app.js -->
+    <!-- Combined Master Metrics Ribbon for All Runs Grid View -->
+    <section id="master-metrics-ribbon" class="metrics-ribbon">
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">PIPELINE LATENCY</span>
+          <span class="metric-badge avg">AVG LATENCY</span>
+        </div>
+        <span id="master-metric-latency" class="metric-value">-- ms</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">PROCESSING SPEED</span>
+          <span class="metric-badge avg">AVG SPEED</span>
+        </div>
+        <span id="master-metric-speed" class="metric-value">-- t/s</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">CONTEXT WINDOW</span>
+          <span class="metric-badge avg">AVG CONTEXT</span>
+        </div>
+        <span id="master-metric-context" class="metric-value">-- %</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">SESSION COST</span>
+          <span class="metric-badge total">TOTAL COST</span>
+        </div>
+        <span id="master-metric-cost" class="metric-value">~$0.0000</span>
+      </div>
     </section>
 
-    <!-- Single Focus Mode Section (Hidden by default, shown when Focus View is selected) -->
+    <!-- 4-in-a-Row Square Summary Cards Grid (matching image copy 8.png) -->
+    <section id="summary-cards-container" class="summary-cards-grid">
+      <!-- Dynamic Square Summary Cards will be rendered here by app.js -->
+    </section>
+
+    <!-- Multi-Run Parallel Split Grid Container (Detailed Cards below) -->
+    <section id="multi-run-container" class="multi-run-grid parallel-mode">
+      <!-- Dynamic Detailed Run Cards will be rendered here by app.js -->
+    </section>
+
+
+    <!-- Single Focus Mode Section (Shown when an individual CLI tab is selected) -->
     <div id="single-focus-section" class="single-focus-view hidden">
+
       <!-- Metrics Ribbon -->
       <section class="metrics-ribbon">
         <div class="metric-card">
@@ -91,8 +122,9 @@
         </div>
       </section>
 
-      <!-- Single Pipeline Flow Diagram -->
-      <section class="pipeline-section">
+      <!-- Single Pipeline Flow Diagram (Hidden in Master View to keep view tidy for multi-agents) -->
+      <section class="pipeline-section" id="single-pipeline-container">
+
         <div class="pipeline-flow" id="single-pipeline-flow">
           <div class="pipeline-node" id="node-thinking">
             <div class="indicator-ring"><div class="indicator-dot"></div></div>
@@ -178,9 +210,27 @@
 
   </div>
 
+  <!-- Reset Confirmation Warning Modal -->
+  <div id="reset-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-warning">⚠️</div>
+        <h3>Reset All Telemetry Data?</h3>
+      </div>
+      <p class="modal-body-text">
+        This action will permanently delete all stored metrics, active CLI runs, console log history, and browser storage.
+      </p>
+      <div class="modal-actions">
+        <button id="btn-cancel-reset" class="btn btn-secondary">Cancel</button>
+        <button id="btn-confirm-reset" class="btn btn-danger">Confirm Reset</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Telemetry JS Modules -->
   <script src="audio-engine.js"></script>
   <script src="app.js"></script>
 </body>
+
 </html>
 

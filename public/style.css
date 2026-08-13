@@ -34,10 +34,39 @@
   padding: 0;
 }
 
+/* Custom Sleek Scrollbars matching UI */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-console);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 245, 255, 0.3);
+  box-shadow: 0 0 8px rgba(0, 245, 255, 0.3);
+}
+
+/* Firefox Scrollbar Support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) var(--bg-console);
+}
+
 body {
   background-color: var(--bg-app);
   color: var(--text-primary);
   font-family: var(--font-sans);
+
   min-height: 100vh;
   display: flex;
   justify-content: center;
@@ -135,6 +164,106 @@ body {
   background-color: var(--bg-card-high);
   color: var(--text-primary);
 }
+
+/* Centered Warning Modal Card & Fixed Fullscreen Overlay */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  opacity: 1;
+  visibility: visible;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-overlay.hidden {
+  display: none !important;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.modal-card {
+  background: var(--bg-surface);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 440px;
+  padding: 2rem;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.9), 0 0 30px rgba(239, 68, 68, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  position: relative;
+  margin: auto;
+  animation: modalCenterPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalCenterPop {
+  0% { opacity: 0; transform: scale(0.9) translateY(12px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.modal-icon-warning {
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
+.modal-header h3 {
+  font-family: var(--font-heading);
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #f87171;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.modal-body-text {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.55;
+  margin: 0;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.btn-danger {
+  background: #dc2626;
+  border: 1px solid #ef4444;
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 14px rgba(220, 38, 38, 0.4);
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+  box-shadow: 0 0 20px rgba(220, 38, 38, 0.65);
+}
+
 
 /* Metrics Ribbon */
 .metrics-ribbon {
@@ -907,8 +1036,58 @@ body {
   box-shadow: 0 0 6px currentColor;
 }
 
+/* 4-in-a-Row Square Summary Cards Grid (matching image copy 8.png) */
+.summary-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .summary-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .summary-cards-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Compact Square Summary Card */
+.summary-card {
+  background: var(--bg-surface);
+  border-radius: 12px;
+  border: 1px solid var(--border-ghost);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 1.1rem 1.25rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  transition: all 0.25s ease;
+  cursor: pointer;
+  min-height: 145px;
+}
+
+.summary-card:hover {
+  border-color: rgba(0, 245, 255, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 0 12px rgba(0, 245, 255, 0.15);
+}
+
+.summary-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
 /* Multi-Run Container (2-Column Grid matching image copy.png) */
 .multi-run-grid.parallel-mode {
+
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 1.5rem;
@@ -994,6 +1173,18 @@ body {
   background: var(--bg-surface);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* 2x2 Metrics Grid inside Square Summary Cards */
+.summary-card .run-metrics-strip {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, auto);
+  gap: 0.85rem 0.75rem;
+  padding: 0.5rem 0 0 0;
+  background: transparent;
+  border-bottom: none;
+}
+
 
 .run-metric-item {
   display: flex;

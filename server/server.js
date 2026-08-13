@@ -164,6 +164,15 @@ function computeLiveMetricsForRun(runId, step) {
 
 // Broadcast to all active WebSocket clients
 function broadcastTelemetry(telemetryData) {
+  if (telemetryData.run_id && runsState[telemetryData.run_id]) {
+    const r = runsState[telemetryData.run_id];
+    r.recentEvents = r.recentEvents || [];
+    r.recentEvents.push(telemetryData);
+    if (r.recentEvents.length > 150) r.recentEvents.shift();
+    if (telemetryData.metadata) r.lastMetrics = telemetryData.metadata;
+    if (telemetryData.event) r.lastEvent = telemetryData.event;
+  }
+
   const payloadString = JSON.stringify(telemetryData);
   let clientsNotified = 0;
 
@@ -176,10 +185,27 @@ function broadcastTelemetry(telemetryData) {
   return clientsNotified;
 }
 
+
 // REST GET endpoint for active runs list
 app.get('/api/runs', (req, res) => {
   return res.status(200).json({ runs: Object.values(runsState) });
 });
+
+// REST POST endpoint to reset all active runs state
+app.post('/api/runs/reset', (req, res) => {
+  Object.keys(runsState).forEach(key => delete runsState[key]);
+  runColorIdx = 0;
+  
+  // Broadcast reset notification to all connected clients
+  wss.clients.forEach((client) => {
+    if (client.readyState === ws.OPEN) {
+      client.send(JSON.stringify({ type: 'reset_all' }));
+    }
+  });
+
+  return res.status(200).json({ status: 'ok', message: 'All telemetry data reset successfully.' });
+});
+
 
 // POST endpoint for Telemetry Logs (Supports Multi-Run)
 app.post('/api/telemetry', (req, res) => {
@@ -241,36 +267,52 @@ function getBrainDir() {
 const watchedTranscripts = {};
 let fileWatcherInterval = null;
 
+function detectCliToolName(filePathOrDir) {
+  const lower = (filePathOrDir || '').toLowerCase();
+  if (lower.includes('antigravity')) return 'Antigravity CLI';
+  if (lower.includes('claude')) return 'Claude Code';
+  if (lower.includes('kilo')) return 'Kilo CLI';
+  if (lower.includes('cursor')) return 'Cursor CLI';
+  if (lower.includes('stitch')) return 'Stitch MCP Worker';
+  return 'AI CLI';
+}
+
 function scanAndProcessTranscripts() {
   const brainDir = getBrainDir();
   if (!brainDir) return;
 
   try {
     const folders = fs.readdirSync(brainDir);
+    const cliBrand = detectCliToolName(brainDir);
+    const oneHourAgo = Date.now() - (60 * 60 * 1000);
 
     folders.forEach(folder => {
       const transcriptPath = path.join(brainDir, folder, '.system_generated/logs/transcript.jsonl');
       if (!fs.existsSync(transcriptPath)) return;
 
+      const stat = fs.statSync(transcriptPath);
+      // Only auto-register active sessions modified in the last 1 hour
+      if (stat.mtimeMs < oneHourAgo) return;
+
       const runId = `conv-${folder}`;
       let shortFolder = folder.length > 12 ? folder.substring(0, 8) : folder;
-      const runName = `CLI (${shortFolder})`;
+      const runName = `${cliBrand} (${shortFolder})`;
 
       if (!watchedTranscripts[transcriptPath]) {
         try {
-          const stat = fs.statSync(transcriptPath);
           watchedTranscripts[transcriptPath] = {
             run_id: runId,
             run_name: runName,
             currentFileSize: stat.size,
             lineRemainder: ''
           };
-          console.log(`[MultiWatcher] Registered transcript watcher for [${runName}]: ${transcriptPath} (${stat.size} bytes)`);
+          console.log(`[MultiWatcher] Registered active transcript watcher for [${runName}]: ${transcriptPath} (${stat.size} bytes)`);
         } catch (err) {
           console.error('[MultiWatcher] Error statting file:', err);
         }
         return;
       }
+
 
       const watched = watchedTranscripts[transcriptPath];
       try {

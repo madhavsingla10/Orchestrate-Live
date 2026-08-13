@@ -15,11 +15,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const singleFocusSection = document.getElementById('single-focus-section');
   const runTabBar = document.getElementById('run-tab-bar');
 
-  const allRunsSubviewToggle = document.getElementById('all-runs-subview-toggle');
-  const btnAllRunsParallel = document.getElementById('btn-allruns-parallel');
-  const btnAllRunsFocus = document.getElementById('btn-allruns-focus');
+  // DOM Elements - Summary Cards & Master Metrics Ribbon for All Runs Grid View
+  const summaryCardsContainer = document.getElementById('summary-cards-container');
+  const masterMetricsRibbon = document.getElementById('master-metrics-ribbon');
+  const masterMetricLatency = document.getElementById('master-metric-latency');
+  const masterMetricSpeed = document.getElementById('master-metric-speed');
+  const masterMetricContext = document.getElementById('master-metric-context');
+  const masterMetricCost = document.getElementById('master-metric-cost');
+
+
+  // DOM Elements - Reset Controls & Modal Warning
+  const resetDashboardBtn = document.getElementById('reset-dashboard-btn');
+  const resetModal = document.getElementById('reset-modal');
+  const btnCancelReset = document.getElementById('btn-cancel-reset');
+  const btnConfirmReset = document.getElementById('btn-confirm-reset');
 
   // DOM Elements - Single View Fallback Controls
+  const singlePipelineContainer = document.getElementById('single-pipeline-container');
   const consoleFeed = document.getElementById('console-feed');
   const clearConsoleBtn = document.getElementById('clear-console-btn');
   const metricLatency = document.getElementById('metric-latency');
@@ -29,6 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const badgeSpeed = document.getElementById('badge-speed');
   const badgeContext = document.getElementById('badge-context');
   const badgeCost = document.getElementById('badge-cost');
+
 
   const singleNodes = {
     thinking: document.getElementById('node-thinking'),
@@ -41,7 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   // State Management
-  let allRunsSubviewMode = 'parallel'; // 'parallel' (default) | 'focus'
   let activeTabRunId = 'all';         // 'all' or specific run_id
   let reconnectDelay = 2000;
   let socket = null;
@@ -61,23 +73,6 @@ document.addEventListener('DOMContentLoaded', () => {
   let isRegexMode = false;
   let isAutoscroll = true;
 
-  // --- All Runs Sub-View Toggle (Side-by-Side Parallel vs Master Focus) ---
-  if (btnAllRunsParallel && btnAllRunsFocus) {
-    btnAllRunsParallel.addEventListener('click', () => {
-      allRunsSubviewMode = 'parallel';
-      btnAllRunsParallel.classList.add('active');
-      btnAllRunsFocus.classList.remove('active');
-      updateTabFocus();
-    });
-
-    btnAllRunsFocus.addEventListener('click', () => {
-      allRunsSubviewMode = 'focus';
-      btnAllRunsFocus.classList.add('active');
-      btnAllRunsParallel.classList.remove('active');
-      updateTabFocus();
-    });
-  }
-
   // --- Run Tab Bar Event Listener ---
   if (runTabBar) {
     runTabBar.addEventListener('click', (e) => {
@@ -91,6 +86,154 @@ document.addEventListener('DOMContentLoaded', () => {
       updateTabFocus();
     });
   }
+
+  function resetAllClientState() {
+    try {
+      localStorage.removeItem('orchestrate_runs_v3');
+      localStorage.removeItem('orchestrate_runs_v2');
+      localStorage.removeItem('orchestrate_runs_v1');
+    } catch (e) {}
+
+    Object.keys(runsStore).forEach(key => delete runsStore[key]);
+
+    if (summaryCardsContainer) summaryCardsContainer.innerHTML = '';
+    if (multiRunContainer) multiRunContainer.innerHTML = '';
+    if (consoleFeed) consoleFeed.innerHTML = '';
+
+    if (runTabBar) {
+      runTabBar.innerHTML = `
+        <button class="run-tab active" data-run-id="all">
+          <span class="run-tab-dot" style="background-color: #00f5ff;"></span>
+          <span class="run-tab-label">All Runs</span>
+        </button>
+      `;
+    }
+
+    if (masterMetricLatency) masterMetricLatency.textContent = '-- ms';
+    if (masterMetricSpeed) masterMetricSpeed.textContent = '-- t/s';
+    if (masterMetricContext) masterMetricContext.textContent = '-- %';
+    if (masterMetricCost) masterMetricCost.textContent = '~$0.0000';
+
+    if (activeRunsCountBadge) activeRunsCountBadge.textContent = '0 Active Runs';
+
+    activeTabRunId = 'all';
+    updateTabFocus();
+  }
+
+  // Reset Confirmation Warning Modal Setup
+  if (resetDashboardBtn && resetModal) {
+    resetDashboardBtn.addEventListener('click', () => {
+      resetModal.classList.remove('hidden');
+    });
+
+    if (btnCancelReset) {
+      btnCancelReset.addEventListener('click', () => {
+        resetModal.classList.add('hidden');
+      });
+    }
+
+    resetModal.addEventListener('click', (e) => {
+      if (e.target === resetModal) {
+        resetModal.classList.add('hidden');
+      }
+    });
+
+    if (btnConfirmReset) {
+      btnConfirmReset.addEventListener('click', async () => {
+        resetModal.classList.add('hidden');
+        resetAllClientState();
+        try {
+          await fetch('/api/runs/reset', { method: 'POST' });
+        } catch (err) {
+          console.error('Failed to trigger server reset:', err);
+        }
+      });
+    }
+  }
+
+  function persistRunsState() {
+
+    try {
+      const serialized = {};
+      Object.keys(runsStore).forEach(id => {
+        const r = runsStore[id];
+        serialized[id] = {
+          run_id: r.run_id,
+          run_name: r.run_name,
+          color: r.color,
+          lastLatency: r.lastLatency,
+          lastSpeed: r.lastSpeed,
+          lastContext: r.lastContext,
+          lastCost: r.lastCost,
+          lastCostStr: r.lastCostStr,
+          lastActiveEvent: r.lastActiveEvent,
+          lastToolName: r.lastToolName,
+          statusBadgeText: r.statusBadgeText,
+          logs: r.logs || []
+        };
+      });
+      localStorage.setItem('orchestrate_runs_v3', JSON.stringify(serialized));
+    } catch (e) {}
+  }
+
+  function restoreRunsState() {
+    try {
+      const raw = localStorage.getItem('orchestrate_runs_v3');
+      if (!raw) return;
+      const data = JSON.parse(raw);
+      Object.values(data).forEach(r => {
+        const runObj = getOrCreateRunUI(r.run_id, r.run_name, r.color);
+        if (typeof r.lastLatency === 'number') {
+          runObj.lastLatency = r.lastLatency;
+          if (runObj.metricsEls.latency) runObj.metricsEls.latency.textContent = `${r.lastLatency} ms`;
+          if (runObj.metricsEls.summaryLatency) runObj.metricsEls.summaryLatency.textContent = `${r.lastLatency} ms`;
+        }
+        if (typeof r.lastSpeed === 'number') {
+          runObj.lastSpeed = r.lastSpeed;
+          if (runObj.metricsEls.speed) runObj.metricsEls.speed.textContent = `${r.lastSpeed} t/s`;
+          if (runObj.metricsEls.summarySpeed) runObj.metricsEls.summarySpeed.textContent = `${r.lastSpeed} t/s`;
+        }
+        if (typeof r.lastContext === 'number') {
+          runObj.lastContext = r.lastContext;
+          if (runObj.metricsEls.context) runObj.metricsEls.context.textContent = `${r.lastContext} %`;
+          if (runObj.metricsEls.summaryContext) runObj.metricsEls.summaryContext.textContent = `${r.lastContext} %`;
+        }
+        if (typeof r.lastCost === 'number') {
+          runObj.lastCost = r.lastCost;
+        }
+        if (r.lastCostStr) {
+          runObj.lastCostStr = r.lastCostStr;
+          if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = r.lastCostStr;
+          if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = r.lastCostStr;
+        }
+        if (r.lastActiveEvent) {
+          runObj.lastActiveEvent = r.lastActiveEvent;
+          runObj.lastToolName = r.lastToolName;
+          updateRunPipelineUI(runObj, r.lastActiveEvent, r.lastToolName);
+        }
+        if (r.statusBadgeText) {
+          runObj.statusBadgeText = r.statusBadgeText;
+          if (runObj.metricsEls.statusBadge) {
+            runObj.metricsEls.statusBadge.textContent = r.statusBadgeText;
+            runObj.metricsEls.statusBadge.className = `run-status-badge ${r.statusBadgeText.toLowerCase()}`;
+          }
+          if (runObj.metricsEls.summaryBadge) {
+            runObj.metricsEls.summaryBadge.textContent = r.statusBadgeText;
+            runObj.metricsEls.summaryBadge.className = `run-status-badge ${r.statusBadgeText.toLowerCase()}`;
+          }
+        }
+
+        if (Array.isArray(r.logs) && r.logs.length > 0) {
+          runObj.logs = [];
+          r.logs.forEach(logItem => {
+            appendEventToConsole(runObj, logItem.event, logItem.message, logItem.metadata, logItem.isError);
+          });
+        }
+      });
+      computeMasterFocusMetrics();
+    } catch (e) {}
+  }
+
 
   function computeMasterFocusMetrics() {
     const runs = Object.values(runsStore);
@@ -112,47 +255,39 @@ document.addEventListener('DOMContentLoaded', () => {
     const avgSpeed = countSpeed > 0 ? Math.round(sumSpeed / countSpeed) : 0;
     const avgContext = countContext > 0 ? (Math.round((sumContext / countContext) * 10) / 10) : 0;
 
-    if (metricLatency) metricLatency.textContent = `${avgLatency} ms`;
-    if (metricSpeed) metricSpeed.textContent = `${avgSpeed} t/s`;
-    if (metricContext) metricContext.textContent = `${avgContext} %`;
-    if (metricCost) metricCost.textContent = `~$ ${sumCost.toFixed(4)}`;
-
-    if (badgeSpeed) { badgeSpeed.className = 'metric-badge avg'; badgeSpeed.textContent = 'AVG SPEED'; }
-    if (badgeContext) { badgeContext.className = 'metric-badge avg'; badgeContext.textContent = 'AVG CONTEXT'; }
-    if (badgeCost) { badgeCost.className = 'metric-badge total'; badgeCost.textContent = 'TOTAL COST'; }
+    if (masterMetricLatency) masterMetricLatency.textContent = `${avgLatency} ms`;
+    if (masterMetricSpeed) masterMetricSpeed.textContent = `${avgSpeed} t/s`;
+    if (masterMetricContext) masterMetricContext.textContent = `${avgContext} %`;
+    if (masterMetricCost) masterMetricCost.textContent = `~$ ${sumCost.toFixed(4)}`;
   }
 
   function updateTabFocus() {
     if (activeTabRunId === 'all') {
       singleFocusSection.classList.remove('individual-run-mode');
+      singleFocusSection.classList.add('hidden');
       
-      // Show All Runs subview toggle
-      if (allRunsSubviewToggle) allRunsSubviewToggle.classList.remove('hidden');
+      if (masterMetricsRibbon) masterMetricsRibbon.classList.remove('hidden');
+      if (summaryCardsContainer) summaryCardsContainer.classList.remove('hidden');
+      if (multiRunContainer) multiRunContainer.className = 'multi-run-grid parallel-mode';
 
-      if (allRunsSubviewMode === 'parallel') {
-        // Parallel View: 2-Column Side-by-Side Grid
-        multiRunContainer.className = 'multi-run-grid parallel-mode';
-        singleFocusSection.classList.add('hidden');
-        Object.values(runsStore).forEach(run => {
-          if (run.cardEl) run.cardEl.classList.remove('hidden');
-        });
-      } else {
-        // Master Focus View: Master Combined Feed & Pipeline with Averaged / Summed Metrics
-        multiRunContainer.className = 'multi-run-grid hidden';
-        singleFocusSection.classList.remove('hidden');
-        computeMasterFocusMetrics();
-        applyLogFilters();
-      }
+      Object.values(runsStore).forEach(run => {
+        if (run.cardEl) run.cardEl.classList.remove('hidden');
+        if (run.summaryCardEl) run.summaryCardEl.classList.remove('hidden');
+      });
+
+      computeMasterFocusMetrics();
     } else {
-      // Specific CLI tab selected (e.g., 'cli-backend' or 'conv-e53b43b2')
+      // Specific CLI tab selected (e.g., 'Antigravity CLI (e53b43b2)')
       singleFocusSection.classList.add('individual-run-mode');
 
-      // Hide All Runs subview toggle
-      if (allRunsSubviewToggle) allRunsSubviewToggle.classList.add('hidden');
+      if (masterMetricsRibbon) masterMetricsRibbon.classList.add('hidden');
+      if (summaryCardsContainer) summaryCardsContainer.classList.add('hidden');
+      if (multiRunContainer) multiRunContainer.className = 'multi-run-grid hidden';
 
-      // Display Full Focus View (matching image copy 3.png) for this specific CLI
-      multiRunContainer.className = 'multi-run-grid hidden';
+      // Display Full Focus View for this specific CLI
       singleFocusSection.classList.remove('hidden');
+      if (singlePipelineContainer) singlePipelineContainer.classList.remove('hidden');
+
 
       // Reset badges to Live / Real-Time for single run
       if (badgeSpeed) { badgeSpeed.className = 'metric-badge live'; badgeSpeed.textContent = 'LIVE'; }
@@ -178,6 +313,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+
   // --- Dynamic Run Card Creation ---
   function getOrCreateRunUI(runId, runName, runColor) {
     if (runsStore[runId]) return runsStore[runId];
@@ -195,7 +332,50 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     runTabBar.appendChild(tabEl);
 
-    // 2. Create Split Card Column in Multi-Run Grid
+    // 2. Create Compact Square Summary Card (4 in a row, matching image copy 8.png)
+    const summaryCardEl = document.createElement('div');
+    summaryCardEl.className = 'summary-card';
+    summaryCardEl.id = `summary-card-${runId}`;
+    summaryCardEl.innerHTML = `
+      <div class="summary-card-header">
+        <div class="run-title-group">
+          <div class="run-color-bar" style="background-color: ${color};"></div>
+          <div class="run-title">${escapeHtml(name)}</div>
+        </div>
+        <div class="run-status-badge IDLE">IDLE</div>
+      </div>
+
+      <div class="run-metrics-strip">
+        <div class="run-metric-item">
+          <span class="run-metric-label">LATENCY</span>
+          <span class="run-metric-val metric-run-latency">-- ms</span>
+        </div>
+        <div class="run-metric-item">
+          <span class="run-metric-label">SPEED</span>
+          <span class="run-metric-val metric-run-speed">-- t/s</span>
+        </div>
+        <div class="run-metric-item">
+          <span class="run-metric-label">CONTEXT</span>
+          <span class="run-metric-val metric-run-context">-- %</span>
+        </div>
+        <div class="run-metric-item">
+          <span class="run-metric-label">COST</span>
+          <span class="run-metric-val metric-run-cost">~$0.0000</span>
+        </div>
+      </div>
+    `;
+
+    summaryCardEl.addEventListener('click', () => {
+      activeTabRunId = runId;
+      runTabBar.querySelectorAll('.run-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.runId === runId);
+      });
+      updateTabFocus();
+    });
+
+    if (summaryCardsContainer) summaryCardsContainer.appendChild(summaryCardEl);
+
+    // 3. Create Full Detailed Card (Stacked below in multi-run grid)
     const cardEl = document.createElement('div');
     cardEl.className = 'run-card';
     cardEl.id = `run-card-${runId}`;
@@ -275,8 +455,6 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-
-
     multiRunContainer.appendChild(cardEl);
 
     // Extract reference pointers
@@ -295,7 +473,12 @@ document.addEventListener('DOMContentLoaded', () => {
       speed: cardEl.querySelector('.metric-run-speed'),
       context: cardEl.querySelector('.metric-run-context'),
       cost: cardEl.querySelector('.metric-run-cost'),
-      statusBadge: cardEl.querySelector('.run-status-badge')
+      statusBadge: cardEl.querySelector('.run-status-badge'),
+      summaryLatency: summaryCardEl.querySelector('.metric-run-latency'),
+      summarySpeed: summaryCardEl.querySelector('.metric-run-speed'),
+      summaryContext: summaryCardEl.querySelector('.metric-run-context'),
+      summaryCost: summaryCardEl.querySelector('.metric-run-cost'),
+      summaryBadge: summaryCardEl.querySelector('.run-status-badge')
     };
 
     const consoleEl = cardEl.querySelector(`#run-console-${runId}`);
@@ -305,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
       run_name: name,
       color: color,
       cardEl,
+      summaryCardEl,
       tabEl,
       nodes,
       metricsEls,
@@ -313,6 +497,8 @@ document.addEventListener('DOMContentLoaded', () => {
       lastReadingFile: '',
       lastEditingFile: ''
     };
+
+
 
     updateActiveRunsCount();
     return runsStore[runId];
@@ -327,21 +513,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // Updates pipeline nodes for a specific run
   function updateRunPipelineUI(runObj, activeEvent, toolName) {
-    if (!runObj || !runObj.nodes) return;
+    if (!runObj) return;
 
-    Object.values(runObj.nodes).forEach(node => {
-      if (node) node.classList.remove('active', 'error');
-    });
+    if (runObj.nodes && Object.keys(runObj.nodes).length > 0) {
+      Object.values(runObj.nodes).forEach(node => {
+        if (node) node.classList.remove('active', 'error');
+      });
+    }
+
+    let badgeText = 'IDLE';
+    let badgeClass = 'IDLE';
 
     if (activeEvent === 'task_error') {
-      Object.values(runObj.nodes).forEach(node => {
-        if (node) node.classList.add('error');
-      });
-      if (runObj.metricsEls.statusBadge) {
-        runObj.metricsEls.statusBadge.textContent = 'ERROR';
-        runObj.metricsEls.statusBadge.className = 'run-status-badge task_error';
+      badgeText = 'ERROR';
+      badgeClass = 'task_error';
+      if (runObj.nodes) {
+        Object.values(runObj.nodes).forEach(node => {
+          if (node) node.classList.add('error');
+        });
       }
     } else if (activeEvent === 'executing_tool') {
+      badgeText = toolName ? formatToolBadgeName(toolName) : 'EXECUTING';
+      badgeClass = 'executing_tool';
+
       let activeNodeName = 'reading';
       if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens'].includes(toolName))) {
         activeNodeName = 'mcp';
@@ -351,19 +545,27 @@ document.addEventListener('DOMContentLoaded', () => {
         activeNodeName = 'terminal';
       }
 
-      if (runObj.nodes[activeNodeName]) runObj.nodes[activeNodeName].classList.add('active');
+      if (runObj.nodes && runObj.nodes[activeNodeName]) runObj.nodes[activeNodeName].classList.add('active');
+    } else if (activeEvent) {
+      badgeText = activeEvent.toUpperCase();
+      badgeClass = activeEvent;
+      if (runObj.nodes && runObj.nodes[activeEvent]) runObj.nodes[activeEvent].classList.add('active');
+    }
+
+    if (runObj.metricsEls) {
+      runObj.statusBadgeText = badgeText;
       if (runObj.metricsEls.statusBadge) {
-        runObj.metricsEls.statusBadge.textContent = toolName ? formatToolBadgeName(toolName) : 'EXECUTING';
-        runObj.metricsEls.statusBadge.className = 'run-status-badge executing_tool';
+        runObj.metricsEls.statusBadge.textContent = badgeText;
+        runObj.metricsEls.statusBadge.className = `run-status-badge ${badgeClass}`;
       }
-    } else if (runObj.nodes[activeEvent]) {
-      runObj.nodes[activeEvent].classList.add('active');
-      if (runObj.metricsEls.statusBadge) {
-        runObj.metricsEls.statusBadge.textContent = activeEvent.toUpperCase();
-        runObj.metricsEls.statusBadge.className = `run-status-badge ${activeEvent}`;
+      if (runObj.metricsEls.summaryBadge) {
+        runObj.metricsEls.summaryBadge.textContent = badgeText;
+        runObj.metricsEls.summaryBadge.className = `run-status-badge ${badgeClass}`;
       }
     }
   }
+
+
 
   // Handle Log Filters
   if (filterPillsContainer) {
@@ -490,13 +692,15 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data);
-        if (payload.type === 'init_runs' && Array.isArray(payload.runs)) {
+        if (payload.type === 'reset_all') {
+          resetAllClientState();
+        } else if (payload.type === 'init_runs' && Array.isArray(payload.runs)) {
           payload.runs.forEach(r => getOrCreateRunUI(r.run_id, r.run_name, r.color));
         } else {
           handleTelemetryEvent(payload);
         }
       } catch (err) {
-        console.error('Error parsing telemetry payload:', err);
+        console.error('Failed to parse WebSocket message:', err);
       }
     };
 
@@ -574,16 +778,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (runObj.metricsEls.context) runObj.metricsEls.context.textContent = `${metadata.context_pct} %`;
       }
       if (metadata.estimated_cost !== undefined) {
+        runObj.lastCostStr = metadata.estimated_cost;
         const parsedCost = parseFloat(metadata.estimated_cost.replace(/[^0-9.]/g, ''));
         if (!isNaN(parsedCost)) runObj.lastCost = parsedCost;
         if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = metadata.estimated_cost;
       }
+
     }
 
+    // Persist runs state to localStorage for refresh retention
+    persistRunsState();
+
     // Update single-view focus section if viewing Master Focus ('all') or specific CLI ('effectiveRunId')
-    if (activeTabRunId === 'all' && allRunsSubviewMode === 'focus') {
+    if (activeTabRunId === 'all') {
       computeMasterFocusMetrics();
-      updateSinglePipelineUI(isError ? 'task_error' : event, toolName);
     } else if (activeTabRunId === effectiveRunId) {
       if (metricLatency) metricLatency.textContent = `${latency} ms`;
       if (metadata) {
@@ -593,6 +801,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       updateSinglePipelineUI(isError ? 'task_error' : event, toolName);
     }
+
 
 
     // 3. Update Pipeline Nodes for this run's card
@@ -731,7 +940,17 @@ document.addEventListener('DOMContentLoaded', () => {
   function appendEventToConsole(runObj, event, message, metadata, isError = false) {
     if (!message) return;
 
+    if (runObj) {
+      runObj.logs = runObj.logs || [];
+      const lastLog = runObj.logs[runObj.logs.length - 1];
+      if (!lastLog || lastLog.message !== message || lastLog.event !== event) {
+        runObj.logs.push({ event, message, metadata, isError });
+        if (runObj.logs.length > 150) runObj.logs.shift();
+      }
+    }
+
     const isCollapsible = message && (message.includes('\n') || message.length > 120);
+
     const toolName = metadata ? metadata.tool_name : '';
     let categoryType = event;
     if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project'].includes(toolName))) {
@@ -856,7 +1075,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  // Restore saved active CLI tabs from localStorage
+  restoreRunsState();
+  updateTabFocus();
+
   // Start WebSockets
   connect();
 });
+
 
