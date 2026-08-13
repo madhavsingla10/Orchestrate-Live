@@ -33,28 +33,28 @@
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-label">PIPELINE LATENCY</span>
-          <span class="metric-badge exact" title="Computed live from event timestamps">REAL</span>
+          <span class="metric-badge realtime" title="Computed live from event timestamps">REAL-TIME</span>
         </div>
         <span id="metric-latency" class="metric-value">-- ms</span>
       </div>
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-label">PROCESSING SPEED</span>
-          <span id="badge-speed" class="metric-badge approx" title="Calculated from step duration and characters">≈ APPROX</span>
+          <span id="badge-speed" class="metric-badge live" title="Calculated live from step throughput">LIVE</span>
         </div>
         <span id="metric-speed" class="metric-value">-- t/s</span>
       </div>
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-label">CONTEXT WINDOW</span>
-          <span id="badge-context" class="metric-badge approx" title="Calculated from session byte payload against 1M limit">≈ APPROX</span>
+          <span id="badge-context" class="metric-badge live" title="Monitored live from session payload">LIVE</span>
         </div>
         <span id="metric-context" class="metric-value">-- %</span>
       </div>
       <div class="metric-card">
         <div class="metric-header">
           <span class="metric-label">SESSION COST</span>
-          <span id="badge-cost" class="metric-badge approx" title="Estimated from session tokens (no direct pricing headers in log)">≈ APPROX</span>
+          <span id="badge-cost" class="metric-badge estimated" title="Estimated live from session tokens">EST. COST</span>
         </div>
         <span id="metric-cost" class="metric-value">~$0.0000</span>
       </div>

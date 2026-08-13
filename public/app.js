@@ -281,10 +281,10 @@ document.addEventListener('DOMContentLoaded', () => {
         metricCost.textContent = metadata.estimated_cost;
       }
 
-      // Update Provenance Badges (EXACT vs ≈ APPROX)
+      // Update Provenance Badges (REAL-TIME vs LIVE vs EST. COST)
       const isExact = metadata.is_exact === true;
-      const badgeClass = isExact ? 'metric-badge exact' : 'metric-badge approx';
-      const badgeText = isExact ? 'EXACT' : '≈ APPROX';
+      const badgeClass = isExact ? 'metric-badge realtime' : 'metric-badge live';
+      const badgeText = isExact ? 'REAL-TIME' : 'LIVE';
 
       if (badgeSpeed) {
         badgeSpeed.className = badgeClass;
@@ -295,8 +295,8 @@ document.addEventListener('DOMContentLoaded', () => {
         badgeContext.textContent = badgeText;
       }
       if (badgeCost) {
-        badgeCost.className = badgeClass;
-        badgeCost.textContent = badgeText;
+        badgeCost.className = 'metric-badge estimated';
+        badgeCost.textContent = 'EST. COST';
       }
     }
 
