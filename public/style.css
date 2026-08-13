@@ -370,6 +370,7 @@ body {
   gap: 0.75rem;
   align-items: flex-start;
   animation: log-fade-in 0.2s ease-out;
+  white-space: pre-wrap;
 }
 
 .console-row.system-msg {

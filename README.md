@@ -90,6 +90,24 @@ node server/simulate.js --error
 
 ---
 
+## 🔍 Automated AI Agent Workspace Watcher
+
+OrchestrateLive features a built-in **Workspace Watcher** integrated directly into the bridge server. 
+
+When you start the bridge server (`node server/server.js`), it automatically scans your local AI developer environment (such as Google Antigravity) to find the most recent conversation transcript logs. It then watches the active conversation's `transcript.jsonl` file in real time.
+
+### How it works:
+1. **User Prompts:** When you type a new prompt to your AI coder, the dashboard receives a `planning` event.
+2. **AI Reasoning:** As the AI thinks, it extracts the agent's raw thinking blocks and flashes the **Thought** node.
+3. **Tool & Command Execution:** Every time the AI runs terminal commands (like `npm run dev` or `git commit`) or modifies code files, the dashboard:
+   - Lights up the **Tool Execution** node.
+   - Attaches customized tags (e.g., `run_command`, `replace_file_content`).
+   - Streams the raw command execution stdout/stderr directly into the **Live Activity Feed** dynamically!
+4. **Completion / Failure:** When the AI completes its response, the dashboard triggers a happy success chime. If a command or tool exits with an error status, it flashes the global error theme.
+
+---
+
+
 ## 📡 Integration & API Reference
 
 OrchestrateLive receives log packets via a POST request at `/api/telemetry` and immediately broadcasts them to active WebSocket clients listening at `/stream`.
