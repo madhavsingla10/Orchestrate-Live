@@ -31,20 +31,32 @@
     <!-- Metrics Ribbon -->
     <section class="metrics-ribbon">
       <div class="metric-card">
-        <span class="metric-label">PIPELINE LATENCY</span>
+        <div class="metric-header">
+          <span class="metric-label">PIPELINE LATENCY</span>
+          <span class="metric-badge exact" title="Computed live from event timestamps">REAL</span>
+        </div>
         <span id="metric-latency" class="metric-value">-- ms</span>
       </div>
       <div class="metric-card">
-        <span class="metric-label">PROCESSING SPEED</span>
+        <div class="metric-header">
+          <span class="metric-label">PROCESSING SPEED</span>
+          <span id="badge-speed" class="metric-badge approx" title="Calculated from step duration and characters">≈ APPROX</span>
+        </div>
         <span id="metric-speed" class="metric-value">-- t/s</span>
       </div>
       <div class="metric-card">
-        <span class="metric-label">CONTEXT WINDOW</span>
+        <div class="metric-header">
+          <span class="metric-label">CONTEXT WINDOW</span>
+          <span id="badge-context" class="metric-badge approx" title="Calculated from session byte payload against 1M limit">≈ APPROX</span>
+        </div>
         <span id="metric-context" class="metric-value">-- %</span>
       </div>
       <div class="metric-card">
-        <span class="metric-label">ESTIMATED COST</span>
-        <span id="metric-cost" class="metric-value">$0.0000</span>
+        <div class="metric-header">
+          <span class="metric-label">SESSION COST</span>
+          <span id="badge-cost" class="metric-badge approx" title="Estimated from session tokens (no direct pricing headers in log)">≈ APPROX</span>
+        </div>
+        <span id="metric-cost" class="metric-value">~$0.0000</span>
       </div>
     </section>
 

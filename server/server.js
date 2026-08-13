@@ -144,43 +144,62 @@ let lastBroadcastedEvent = null;
 // Telemetry Live Metrics Accumulator
 let sessionInputChars = 0;
 let sessionOutputChars = 0;
+let sessionExactInputTokens = 0;
+let sessionExactOutputTokens = 0;
+let hasExactUsageData = false;
 let lastStepTimestamp = null;
 let lastCalculatedSpeed = 45;
 
 function computeLiveMetrics(step) {
-  const contentChars = (step.content || '').length;
-  const thinkingChars = (step.thinking || '').length;
-  const toolCallsChars = JSON.stringify(step.tool_calls || '').length;
+  let isStepExact = false;
+  let stepInTokens = 0;
+  let stepOutTokens = 0;
 
-  if (step.source === 'USER_EXPLICIT' || ['RUN_COMMAND', 'VIEW_FILE', 'LIST_DIRECTORY', 'GREP_SEARCH', 'SEARCH_WEB', 'READ_URL_CONTENT'].includes(step.type)) {
-    sessionInputChars += contentChars;
+  // 1. Check for explicit usage objects in logs (e.g. Claude Code or OpenAI formats)
+  const usageObj = step.usage || (step.message && step.message.usage) || (step.metadata && step.metadata.usage);
+  if (usageObj && (typeof usageObj.input_tokens === 'number' || typeof usageObj.prompt_tokens === 'number')) {
+    isStepExact = true;
+    hasExactUsageData = true;
+    stepInTokens = usageObj.input_tokens || usageObj.prompt_tokens || 0;
+    stepOutTokens = usageObj.output_tokens || usageObj.completion_tokens || 0;
+    sessionExactInputTokens += stepInTokens;
+    sessionExactOutputTokens += stepOutTokens;
   } else {
-    sessionOutputChars += contentChars + thinkingChars + toolCallsChars;
+    // 2. Character-based estimation (Antigravity / JSONL conversation steps)
+    const contentChars = (step.content || '').length;
+    const thinkingChars = (step.thinking || '').length;
+    const toolCallsChars = JSON.stringify(step.tool_calls || '').length;
+
+    if (step.source === 'USER_EXPLICIT' || ['RUN_COMMAND', 'VIEW_FILE', 'LIST_DIRECTORY', 'GREP_SEARCH', 'SEARCH_WEB', 'READ_URL_CONTENT'].includes(step.type)) {
+      sessionInputChars += contentChars;
+    } else {
+      sessionOutputChars += contentChars + thinkingChars + toolCallsChars;
+    }
   }
 
   // Calculate live token speed
   const now = step.created_at ? new Date(step.created_at).getTime() : Date.now();
   if (lastStepTimestamp) {
     const elapsedSec = Math.max(0.4, (now - lastStepTimestamp) / 1000);
-    const stepTokens = Math.max(10, Math.round((contentChars + thinkingChars + toolCallsChars) / 4));
+    const stepTokens = isStepExact ? (stepInTokens + stepOutTokens) : Math.max(10, Math.round(((step.content || '').length + (step.thinking || '').length) / 4));
     if (elapsedSec < 30) {
       lastCalculatedSpeed = Math.min(180, Math.max(15, Math.round(stepTokens / elapsedSec)));
     }
   }
   lastStepTimestamp = now;
 
-  // Context %: active transcript file size / 1M token context limit (~4MB)
-  const totalSessionBytes = currentFileSize || (sessionInputChars + sessionOutputChars);
-  const totalTokens = Math.round(totalSessionBytes / 4);
+  // Context %: total tokens / 1M token limit
+  const totalInTokens = hasExactUsageData ? sessionExactInputTokens : Math.round(sessionInputChars / 4);
+  const totalOutTokens = hasExactUsageData ? sessionExactOutputTokens : Math.round(sessionOutputChars / 4);
+  const totalTokens = totalInTokens + totalOutTokens;
   const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / 1000000) * 100 * 10) / 10));
 
   // Cost: Input ~$0.15 / 1M tokens, Output ~$0.60 / 1M tokens
-  const inputTokens = Math.round(sessionInputChars / 4);
-  const outputTokens = Math.round(sessionOutputChars / 4);
-  const cost = (inputTokens / 1000000) * 0.15 + (outputTokens / 1000000) * 0.60;
-  const estimatedCost = `$${cost.toFixed(4)}`;
+  const cost = (totalInTokens / 1000000) * 0.15 + (totalOutTokens / 1000000) * 0.60;
+  const estimatedCost = `${hasExactUsageData ? '$' : '~$ '}${cost.toFixed(4)}`;
 
   return {
+    is_exact: hasExactUsageData,
     tokens_per_sec: lastCalculatedSpeed,
     context_pct: contextPct,
     estimated_cost: estimatedCost

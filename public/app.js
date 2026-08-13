@@ -16,6 +16,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const metricSpeed = document.getElementById('metric-speed');
   const metricContext = document.getElementById('metric-context');
   const metricCost = document.getElementById('metric-cost');
+
+  const badgeSpeed = document.getElementById('badge-speed');
+  const badgeContext = document.getElementById('badge-context');
+  const badgeCost = document.getElementById('badge-cost');
   
   const nodes = {
     thinking: document.getElementById('node-thinking'),
@@ -146,6 +150,24 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (metadata.estimated_cost !== undefined && metricCost) {
         metricCost.textContent = metadata.estimated_cost;
+      }
+
+      // Update Provenance Badges (EXACT vs ≈ APPROX)
+      const isExact = metadata.is_exact === true;
+      const badgeClass = isExact ? 'metric-badge exact' : 'metric-badge approx';
+      const badgeText = isExact ? 'EXACT' : '≈ APPROX';
+
+      if (badgeSpeed) {
+        badgeSpeed.className = badgeClass;
+        badgeSpeed.textContent = badgeText;
+      }
+      if (badgeContext) {
+        badgeContext.className = badgeClass;
+        badgeContext.textContent = badgeText;
+      }
+      if (badgeCost) {
+        badgeCost.className = badgeClass;
+        badgeCost.textContent = badgeText;
       }
     }
 
