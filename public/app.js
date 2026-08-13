@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const metricLatency = document.getElementById('metric-latency');
   const metricSpeed = document.getElementById('metric-speed');
   const metricContext = document.getElementById('metric-context');
+  const metricCost = document.getElementById('metric-cost');
   
   const nodes = {
     thinking: document.getElementById('node-thinking'),
@@ -142,6 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       if (metadata.context_pct !== undefined) {
         metricContext.textContent = `${metadata.context_pct} %`;
+      }
+      if (metadata.estimated_cost !== undefined && metricCost) {
+        metricCost.textContent = metadata.estimated_cost;
       }
     }
 

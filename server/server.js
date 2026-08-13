@@ -141,8 +141,55 @@ let lineRemainder = '';
 // Keeps track of the last broadcasted state to prevent spamming the client
 let lastBroadcastedEvent = null;
 
+// Telemetry Live Metrics Accumulator
+let sessionInputChars = 0;
+let sessionOutputChars = 0;
+let lastStepTimestamp = null;
+let lastCalculatedSpeed = 45;
+
+function computeLiveMetrics(step) {
+  const contentChars = (step.content || '').length;
+  const thinkingChars = (step.thinking || '').length;
+  const toolCallsChars = JSON.stringify(step.tool_calls || '').length;
+
+  if (step.source === 'USER_EXPLICIT' || ['RUN_COMMAND', 'VIEW_FILE', 'LIST_DIRECTORY', 'GREP_SEARCH', 'SEARCH_WEB', 'READ_URL_CONTENT'].includes(step.type)) {
+    sessionInputChars += contentChars;
+  } else {
+    sessionOutputChars += contentChars + thinkingChars + toolCallsChars;
+  }
+
+  // Calculate live token speed
+  const now = step.created_at ? new Date(step.created_at).getTime() : Date.now();
+  if (lastStepTimestamp) {
+    const elapsedSec = Math.max(0.4, (now - lastStepTimestamp) / 1000);
+    const stepTokens = Math.max(10, Math.round((contentChars + thinkingChars + toolCallsChars) / 4));
+    if (elapsedSec < 30) {
+      lastCalculatedSpeed = Math.min(180, Math.max(15, Math.round(stepTokens / elapsedSec)));
+    }
+  }
+  lastStepTimestamp = now;
+
+  // Context %: active transcript file size / 1M token context limit (~4MB)
+  const totalSessionBytes = currentFileSize || (sessionInputChars + sessionOutputChars);
+  const totalTokens = Math.round(totalSessionBytes / 4);
+  const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / 1000000) * 100 * 10) / 10));
+
+  // Cost: Input ~$0.15 / 1M tokens, Output ~$0.60 / 1M tokens
+  const inputTokens = Math.round(sessionInputChars / 4);
+  const outputTokens = Math.round(sessionOutputChars / 4);
+  const cost = (inputTokens / 1000000) * 0.15 + (outputTokens / 1000000) * 0.60;
+  const estimatedCost = `$${cost.toFixed(4)}`;
+
+  return {
+    tokens_per_sec: lastCalculatedSpeed,
+    context_pct: contextPct,
+    estimated_cost: estimatedCost
+  };
+}
+
 function parseStepAndBroadcast(step) {
   const timestamp = step.created_at || new Date().toISOString();
+  const liveMetrics = computeLiveMetrics(step);
 
   // 1. User sends a new request
   if (step.source === 'USER_EXPLICIT' && step.type === 'USER_INPUT') {
@@ -150,7 +197,7 @@ function parseStepAndBroadcast(step) {
       timestamp,
       event: 'planning',
       message: `User Request Received:\n${step.content}`,
-      metadata: { context_pct: 0 }
+      metadata: { ...liveMetrics }
     });
     lastBroadcastedEvent = 'planning';
     return;
@@ -163,7 +210,7 @@ function parseStepAndBroadcast(step) {
       timestamp,
       event: 'thinking',
       message: step.thinking.trim(),
-      metadata: {}
+      metadata: { ...liveMetrics }
     });
     lastBroadcastedEvent = 'thinking';
     hasThinking = true;
@@ -216,6 +263,7 @@ function parseStepAndBroadcast(step) {
           event: 'executing_tool',
           message: msg,
           metadata: {
+            ...liveMetrics,
             tool_name: toolName,
             target: target || undefined
           }
@@ -251,6 +299,7 @@ function parseStepAndBroadcast(step) {
         event: 'executing_tool',
         message: step.content.trim(),
         metadata: {
+          ...liveMetrics,
           tool_name: step.type.toLowerCase(),
           target: step.exit_code !== undefined ? `Exit Code: ${step.exit_code}` : undefined
         }
@@ -265,7 +314,7 @@ function parseStepAndBroadcast(step) {
       timestamp,
       event: 'task_error',
       message: `Execution Error: ${step.content || 'Tool invocation aborted.'}`,
-      metadata: {}
+      metadata: { ...liveMetrics }
     });
     lastBroadcastedEvent = 'task_error';
     return;
@@ -279,7 +328,7 @@ function parseStepAndBroadcast(step) {
         timestamp,
         event: 'task_done',
         message: 'Task turn finished. Awaiting next request...',
-        metadata: { elapsed_seconds: 0, tokens_per_sec: 45 }
+        metadata: { ...liveMetrics }
       });
       lastBroadcastedEvent = 'task_done';
     }
