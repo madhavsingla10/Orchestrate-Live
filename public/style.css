@@ -588,6 +588,10 @@ body {
   white-space: pre-wrap;
 }
 
+.console-row.hidden {
+  display: none !important;
+}
+
 .console-row.collapsible {
   display: block;
   width: 100%;

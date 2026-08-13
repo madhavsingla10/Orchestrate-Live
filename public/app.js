@@ -94,9 +94,10 @@ document.addEventListener('DOMContentLoaded', () => {
     let visibleCount = 0;
     let regex = null;
 
-    if (searchQuery.trim()) {
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery) {
       try {
-        regex = isRegexMode ? new RegExp(searchQuery, 'i') : null;
+        regex = isRegexMode ? new RegExp(trimmedQuery, 'i') : null;
       } catch (err) {
         regex = null;
       }
@@ -104,20 +105,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     rows.forEach(row => {
       const eventType = row.dataset.eventType || '';
+      const rowClassList = Array.from(row.classList);
       const text = row.textContent.toLowerCase();
-      const queryLower = searchQuery.toLowerCase();
+      const queryLower = trimmedQuery.toLowerCase();
 
       let categoryMatch = (currentFilter === 'all');
       if (!categoryMatch) {
-        if (currentFilter === 'thinking' && (eventType === 'thinking' || eventType === 'planning')) categoryMatch = true;
-        if (currentFilter === 'executing_tool' && eventType === 'executing_tool') categoryMatch = true;
-        if (currentFilter === 'mcp' && (eventType === 'mcp' || text.includes('mcp') || text.includes('stitch') || text.includes('call_mcp_tool'))) categoryMatch = true;
-        if (currentFilter === 'terminal' && (eventType === 'terminal' || text.includes('run_command') || text.includes('command_exec'))) categoryMatch = true;
-        if (currentFilter === 'task_error' && (eventType.includes('error') || row.classList.contains('error-run'))) categoryMatch = true;
+        if (currentFilter === 'thinking' && (eventType === 'thinking' || eventType === 'planning' || rowClassList.includes('thinking') || rowClassList.includes('planning'))) categoryMatch = true;
+        if (currentFilter === 'executing_tool' && (eventType === 'executing_tool' || rowClassList.includes('executing_tool'))) categoryMatch = true;
+        if (currentFilter === 'mcp' && (eventType === 'mcp' || text.includes('mcp') || text.includes('stitch') || text.includes('call mcp tool') || text.includes('call_mcp_tool'))) categoryMatch = true;
+        if (currentFilter === 'terminal' && (eventType === 'terminal' || text.includes('run command') || text.includes('run_command') || text.includes('executing terminal command'))) categoryMatch = true;
+        if (currentFilter === 'task_error' && (eventType.includes('error') || rowClassList.includes('error-run') || rowClassList.includes('task_error'))) categoryMatch = true;
       }
 
       let searchMatch = true;
-      if (searchQuery.trim()) {
+      if (trimmedQuery) {
         if (regex) {
           searchMatch = regex.test(row.textContent);
         } else {
@@ -532,8 +534,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const isCollapsible = message && (message.includes('\n') || message.length > 120);
 
+    const toolName = metadata ? metadata.tool_name : '';
+    let categoryType = event;
+    if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens'].includes(toolName))) {
+      categoryType = 'mcp';
+    } else if (toolName === 'run_command') {
+      categoryType = 'terminal';
+    }
+
     const row = document.createElement('div');
     row.className = `console-row ${isError ? 'error-run task_error' : event}`;
+    row.dataset.eventType = categoryType;
     if (isCollapsible) {
       row.classList.add('collapsible', 'collapsed');
     }
@@ -633,8 +644,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     consoleFeed.appendChild(row);
-    // Smooth scroll to bottom
-    consoleFeed.scrollTop = consoleFeed.scrollHeight;
+    applyLogFilters();
+    if (isAutoscroll) {
+      consoleFeed.scrollTop = consoleFeed.scrollHeight;
+    }
   }
 
   // System diagnostic console logging
