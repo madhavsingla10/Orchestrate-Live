@@ -27,6 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     reading: document.getElementById('node-reading'),
     writing: document.getElementById('node-writing'),
     terminal: document.getElementById('node-terminal'),
+    mcp: document.getElementById('node-mcp'),
     task_done: document.getElementById('node-task_done')
   };
 
@@ -37,7 +38,135 @@ document.addEventListener('DOMContentLoaded', () => {
   let lastReadingFile = '';
   let lastEditingFile = '';
 
-  // Set up audio activation listener (Autoplay bypass)
+  // Log Controls State
+  const logSearchInput = document.getElementById('log-search-input');
+  const btnRegexToggle = document.getElementById('btn-regex-toggle');
+  const filterPillsContainer = document.getElementById('filter-pills');
+  const autoscrollToggleBtn = document.getElementById('autoscroll-toggle-btn');
+  const logCountBadge = document.getElementById('log-count-badge');
+
+  let currentFilter = 'all';
+  let searchQuery = '';
+  let isRegexMode = false;
+  let isAutoscroll = true;
+  let totalEventCount = 0;
+
+  // Filter Pills Event Listener
+  if (filterPillsContainer) {
+    filterPillsContainer.addEventListener('click', (e) => {
+      const pill = e.target.closest('.filter-pill');
+      if (!pill) return;
+      filterPillsContainer.querySelectorAll('.filter-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      currentFilter = pill.dataset.filter || 'all';
+      applyLogFilters();
+    });
+  }
+
+  // Regex Toggle Button
+  if (btnRegexToggle) {
+    btnRegexToggle.addEventListener('click', () => {
+      isRegexMode = !isRegexMode;
+      btnRegexToggle.classList.toggle('active', isRegexMode);
+      applyLogFilters();
+    });
+  }
+
+  // Search Input Handler
+  if (logSearchInput) {
+    logSearchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      applyLogFilters();
+    });
+  }
+
+  // Autoscroll Lock Toggle
+  if (autoscrollToggleBtn) {
+    autoscrollToggleBtn.addEventListener('click', () => {
+      isAutoscroll = !isAutoscroll;
+      autoscrollToggleBtn.classList.toggle('active', isAutoscroll);
+    });
+  }
+
+  // Apply log filters across all console rows
+  function applyLogFilters() {
+    const rows = consoleFeed.querySelectorAll('.console-row');
+    let visibleCount = 0;
+    let regex = null;
+
+    if (searchQuery.trim()) {
+      try {
+        regex = isRegexMode ? new RegExp(searchQuery, 'i') : null;
+      } catch (err) {
+        regex = null;
+      }
+    }
+
+    rows.forEach(row => {
+      const eventType = row.dataset.eventType || '';
+      const text = row.textContent.toLowerCase();
+      const queryLower = searchQuery.toLowerCase();
+
+      let categoryMatch = (currentFilter === 'all');
+      if (!categoryMatch) {
+        if (currentFilter === 'thinking' && (eventType === 'thinking' || eventType === 'planning')) categoryMatch = true;
+        if (currentFilter === 'executing_tool' && eventType === 'executing_tool') categoryMatch = true;
+        if (currentFilter === 'mcp' && (eventType === 'mcp' || text.includes('mcp') || text.includes('stitch') || text.includes('call_mcp_tool'))) categoryMatch = true;
+        if (currentFilter === 'terminal' && (eventType === 'terminal' || text.includes('run_command') || text.includes('command_exec'))) categoryMatch = true;
+        if (currentFilter === 'task_error' && (eventType.includes('error') || row.classList.contains('error-run'))) categoryMatch = true;
+      }
+
+      let searchMatch = true;
+      if (searchQuery.trim()) {
+        if (regex) {
+          searchMatch = regex.test(row.textContent);
+        } else {
+          searchMatch = text.includes(queryLower);
+        }
+      }
+
+      if (categoryMatch && searchMatch) {
+        row.classList.remove('hidden');
+        visibleCount++;
+      } else {
+        row.classList.add('hidden');
+      }
+    });
+
+    if (logCountBadge) {
+      logCountBadge.textContent = `${visibleCount} Event${visibleCount !== 1 ? 's' : ''}`;
+    }
+  }
+
+  // Updates pipeline active/error classes
+  function updatePipelineUI(activeEvent, toolName) {
+    // Clear previous state classes
+    Object.values(nodes).forEach(node => {
+      if (node) node.classList.remove('active', 'error');
+    });
+
+    if (activeEvent === 'task_error') {
+      // Light up all nodes in ruby error mode
+      Object.values(nodes).forEach(node => {
+        if (node) node.classList.add('error');
+      });
+    } else if (activeEvent === 'executing_tool') {
+      // Differentiate tool execution into Reading, Writing, Terminal, and MCP nodes
+      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'get_screen', 'list_screens'].includes(toolName))) {
+        if (nodes.mcp) nodes.mcp.classList.add('active');
+      } else if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
+        if (nodes.reading) nodes.reading.classList.add('active');
+      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
+        if (nodes.writing) nodes.writing.classList.add('active');
+      } else if (toolName === 'run_command') {
+        if (nodes.terminal) nodes.terminal.classList.add('active');
+      } else {
+        if (nodes.reading) nodes.reading.classList.add('active');
+      }
+    } else if (nodes[activeEvent]) {
+      nodes[activeEvent].classList.add('active');
+    }
+  }
   audioToggle.addEventListener('click', () => {
     if (audioEngine.muted) {
       audioEngine.setMuted(false);
@@ -191,8 +320,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (node) node.classList.add('error');
       });
     } else if (activeEvent === 'executing_tool') {
-      // Differentiate tool execution into Reading, Writing, and Terminal nodes
-      if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
+      // Differentiate tool execution into Reading, Writing, Terminal, and MCP nodes
+      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'get_screen', 'list_screens'].includes(toolName))) {
+        if (nodes.mcp) nodes.mcp.classList.add('active');
+      } else if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
         if (nodes.reading) nodes.reading.classList.add('active');
       } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
         if (nodes.writing) nodes.writing.classList.add('active');

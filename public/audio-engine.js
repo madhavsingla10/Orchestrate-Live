@@ -48,7 +48,9 @@ class AudioTelemetryEngine {
         this.playPlanning();
         break;
       case 'executing_tool':
-        if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
+        if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text'].includes(toolName))) {
+          this.playExecutingTool();
+        } else if (['view_file', 'list_dir', 'list_directory', 'grep_search', 'search_web', 'read_url_content'].includes(toolName)) {
           this.playReadingFile();
         } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
           this.playWritingCode();

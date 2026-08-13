@@ -119,7 +119,18 @@
         
         <div class="flow-arrow"></div>
 
-        <!-- Node 6: Done -->
+        <!-- Node 6: MCP -->
+        <div class="pipeline-node" id="node-mcp">
+          <div class="indicator-ring">
+            <div class="indicator-dot"></div>
+          </div>
+          <div class="node-label">MCP</div>
+          <div class="node-sub">Protocol & Tools</div>
+        </div>
+        
+        <div class="flow-arrow"></div>
+
+        <!-- Node 7: Done -->
         <div class="pipeline-node" id="node-task_done">
           <div class="indicator-ring">
             <div class="indicator-dot"></div>
@@ -134,11 +145,34 @@
     <!-- Console Viewport -->
     <section class="console-section">
       <div class="console-header">
-        <h2>Live Activity Feed</h2>
-        <button id="clear-console-btn" class="btn btn-secondary">Clear</button>
+        <div class="console-title-group">
+          <h2>Live Activity Feed</h2>
+          <span id="log-count-badge" class="log-count-badge">0 Events</span>
+        </div>
+        <div class="console-controls">
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="log-search-input" placeholder="Filter logs (e.g. tool, style.css)..." />
+            <button id="btn-regex-toggle" class="btn-mini" title="Toggle Regex Search">.*</button>
+          </div>
+          <div class="filter-pills" id="filter-pills">
+            <button class="filter-pill active" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="thinking">Thought</button>
+            <button class="filter-pill" data-filter="executing_tool">Tool Call</button>
+            <button class="filter-pill" data-filter="mcp">MCP</button>
+            <button class="filter-pill" data-filter="terminal">Terminal</button>
+            <button class="filter-pill" data-filter="task_error">Errors</button>
+          </div>
+          <div class="console-actions">
+            <button id="autoscroll-toggle-btn" class="btn btn-secondary btn-autoscroll active" title="Toggle Autoscroll Lock">
+              <span class="icon">⬇</span> Auto
+            </button>
+            <button id="clear-console-btn" class="btn btn-secondary">Clear</button>
+          </div>
+        </div>
       </div>
-      <div class="console-viewport" id="console-feed">
-        <div class="console-row system-msg">
+      <div class="console-viewport font-mono" id="console-feed">
+        <div class="console-row system-msg" data-event-type="system-msg">
           <span class="timestamp">[00:00:00]</span>
           <span class="message">Waiting for agent telemetry stream...</span>
         </div>
