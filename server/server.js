@@ -10,8 +10,14 @@ const port = process.env.PORT || 3000;
 // Middleware for parsing JSON requests
 app.use(express.json());
 
-// Serve static frontend dashboard from public folder
-app.use(express.static(path.join(__dirname, '../public')));
+// Serve static frontend dashboard from public folder with no-cache headers
+app.use(express.static(path.join(__dirname, '../public'), {
+  etag: false,
+  maxAge: 0,
+  setHeaders: (res) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  }
+}));
 
 // Create combined HTTP & WebSocket server
 const server = http.createServer(app);
@@ -151,6 +157,7 @@ function parseStepAndBroadcast(step) {
   }
 
   // 2. AI thinking/reasoning blocks
+  let hasThinking = false;
   if (step.thinking && step.thinking.trim()) {
     broadcastTelemetry({
       timestamp,
@@ -159,48 +166,84 @@ function parseStepAndBroadcast(step) {
       metadata: {}
     });
     lastBroadcastedEvent = 'thinking';
+    hasThinking = true;
   }
 
   // 3. AI executing tool calls
   if (step.tool_calls && step.tool_calls.length > 0) {
-    step.tool_calls.forEach(toolCall => {
-      let toolName = toolCall.name;
-      let target = '';
-      let msg = '';
+    const broadcastTools = () => {
+      step.tool_calls.forEach(toolCall => {
+        const toolName = toolCall.name;
+        let target = '';
+        let msg = '';
 
-      if (toolCall.name === 'run_command' && toolCall.args) {
-        target = toolCall.args.CommandLine || '';
-        msg = `Executing terminal command: ${target}`;
-      } else if ((toolCall.name === 'replace_file_content' || toolCall.name === 'write_to_file') && toolCall.args) {
-        target = toolCall.args.TargetFile || '';
-        msg = `Writing changes to file: ${path.basename(target)}`;
-      } else if (toolCall.name === 'view_file' && toolCall.args) {
-        target = toolCall.args.AbsolutePath || '';
-        msg = `Reading file: ${path.basename(target)}`;
-      } else if (toolCall.name === 'list_dir' && toolCall.args) {
-        target = toolCall.args.DirectoryPath || '';
-        msg = `Listing files in directory: ${path.basename(target)}`;
-      } else {
-        msg = `Invoking workspace tool: ${toolName}`;
-      }
-
-      broadcastTelemetry({
-        timestamp,
-        event: 'executing_tool',
-        message: msg,
-        metadata: {
-          tool_name: toolName,
-          target: target || undefined
+        if (toolCall.name === 'run_command' && toolCall.args) {
+          target = toolCall.args.CommandLine || '';
+          msg = `Executing terminal command: ${target}`;
+        } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content'].includes(toolCall.name) && toolCall.args) {
+          target = toolCall.args.TargetFile || '';
+          msg = `Writing changes to file: ${path.basename(target)}`;
+        } else if (toolCall.name === 'view_file' && toolCall.args) {
+          target = toolCall.args.AbsolutePath || '';
+          msg = `Reading file: ${path.basename(target)}`;
+        } else if (toolCall.name === 'list_dir' && toolCall.args) {
+          target = toolCall.args.DirectoryPath || '';
+          msg = `Listing files in directory: ${path.basename(target)}`;
+        } else if (toolCall.name === 'grep_search' && toolCall.args) {
+          const query = toolCall.args.Query || '';
+          target = toolCall.args.SearchPath || '';
+          msg = `Searching pattern "${query}" in: ${path.basename(target)}`;
+        } else if (toolCall.name === 'search_web' && toolCall.args) {
+          target = toolCall.args.query || '';
+          msg = `Searching the web for: "${target}"`;
+        } else if (toolCall.name === 'read_url_content' && toolCall.args) {
+          target = toolCall.args.Url || '';
+          msg = `Fetching web content from URL: ${target}`;
+        } else if (toolCall.name === 'invoke_subagent' && toolCall.args) {
+          const subagents = toolCall.args.Subagents || [];
+          const roles = subagents.map(s => s.Role).join(', ');
+          target = roles;
+          msg = `Invoking subagents: ${roles}`;
+        } else if (toolCall.name === 'send_message' && toolCall.args) {
+          target = toolCall.args.Recipient || '';
+          msg = `Sending message to subagent: ${target}`;
+        } else {
+          msg = `Invoking workspace tool: ${toolName}`;
         }
+
+        broadcastTelemetry({
+          timestamp,
+          event: 'executing_tool',
+          message: msg,
+          metadata: {
+            tool_name: toolName,
+            target: target || undefined
+          }
+        });
+        lastBroadcastedEvent = 'executing_tool';
       });
-      lastBroadcastedEvent = 'executing_tool';
-    });
+    };
+
+    if (hasThinking) {
+      setTimeout(broadcastTools, 1500);
+    } else {
+      broadcastTools();
+    }
   }
 
   // 4. Command outputs & execution logs
   if (step.source === 'MODEL' && step.status === 'DONE' && step.content) {
     // Only broadcast command outputs, file write completions, etc.
-    const isToolOutput = ['RUN_COMMAND', 'CODE_ACTION', 'VIEW_FILE', 'LIST_DIRECTORY'].includes(step.type);
+    const isToolOutput = [
+      'RUN_COMMAND', 
+      'CODE_ACTION', 
+      'VIEW_FILE', 
+      'LIST_DIRECTORY', 
+      'GREP_SEARCH', 
+      'SEARCH_WEB', 
+      'READ_URL_CONTENT', 
+      'INVOKE_SUBAGENT'
+    ].includes(step.type);
     
     if (isToolOutput) {
       broadcastTelemetry({
@@ -231,7 +274,7 @@ function parseStepAndBroadcast(step) {
   // 6. Turn completion: If the MODEL completes its response, and it has no pending tool calls, it means the agent finished the task turn!
   if (step.source === 'MODEL' && step.type === 'PLANNER_RESPONSE' && step.status === 'DONE') {
     const hasToolCalls = step.tool_calls && step.tool_calls.length > 0;
-    if (!hasToolCalls) {
+    if (!hasToolCalls && lastBroadcastedEvent !== 'task_done') {
       broadcastTelemetry({
         timestamp,
         event: 'task_done',
