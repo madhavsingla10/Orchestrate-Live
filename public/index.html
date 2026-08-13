@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrchestrateLive — AI Agent Telemetry Dashboard</title>
+  
+  <!-- Typography Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Header Bar -->
+    <header class="app-header">
+      <div class="brand">
+        <h1>Orchestrate<span>Live</span></h1>
+        <div id="connection-badge" class="connection-status disconnected">Disconnected</div>
+      </div>
+      <div class="controls">
+        <button id="audio-toggle" class="btn btn-audio-toggle muted">
+          <span class="icon">🔇</span> Enable Audio
+        </button>
+      </div>
+    </header>
+
+    <!-- Metrics Ribbon -->
+    <section class="metrics-ribbon">
+      <div class="metric-card">
+        <span class="metric-label">PIPELINE LATENCY</span>
+        <span id="metric-latency" class="metric-value">-- ms</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">PROCESSING SPEED</span>
+        <span id="metric-speed" class="metric-value">-- t/s</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-label">CONTEXT WINDOW</span>
+        <span id="metric-context" class="metric-value">-- %</span>
+      </div>
+    </section>
+
+    <!-- Pipeline Flow Diagram -->
+    <section class="pipeline-section">
+      <div class="pipeline-flow">
+        
+        <!-- Node 1: Thought -->
+        <div class="pipeline-node" id="node-thinking">
+          <div class="indicator-ring">
+            <div class="indicator-dot"></div>
+          </div>
+          <div class="node-label">Thought</div>
+          <div class="node-sub">Analyzing & Reasoning</div>
+        </div>
+        
+        <div class="flow-arrow"></div>
+
+        <!-- Node 2: Planning -->
+        <div class="pipeline-node" id="node-planning">
+          <div class="indicator-ring">
+            <div class="indicator-dot"></div>
+          </div>
+          <div class="node-label">Planning</div>
+          <div class="node-sub">Structuring Steps</div>
+        </div>
+        
+        <div class="flow-arrow"></div>
+
+        <!-- Node 3: Tool Execution -->
+        <div class="pipeline-node" id="node-executing_tool">
+          <div class="indicator-ring">
+            <div class="indicator-dot"></div>
+          </div>
+          <div class="node-label">Tool Execution</div>
+          <div class="node-sub">Modifying Workspace</div>
+        </div>
+        
+        <div class="flow-arrow"></div>
+
+        <!-- Node 4: Done -->
+        <div class="pipeline-node" id="node-task_done">
+          <div class="indicator-ring">
+            <div class="indicator-dot"></div>
+          </div>
+          <div class="node-label">Done</div>
+          <div class="node-sub">Task Completed</div>
+        </div>
+        
+      </div>
+    </section>
+
+    <!-- Console Viewport -->
+    <section class="console-section">
+      <div class="console-header">
+        <h2>Live Activity Feed</h2>
+        <button id="clear-console-btn" class="btn btn-secondary">Clear</button>
+      </div>
+      <div class="console-viewport" id="console-feed">
+        <div class="console-row system-msg">
+          <span class="timestamp">[00:00:00]</span>
+          <span class="message">Waiting for agent telemetry stream...</span>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Telemetry JS Modules -->
+  <script src="audio-engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
