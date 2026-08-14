@@ -242,13 +242,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let sumLatency = 0, countLatency = 0;
     let sumSpeed = 0, countSpeed = 0;
     let sumContext = 0, countContext = 0;
-    let sumCost = 0;
-
+    let sumCost = 0, countCost = 0;
     runs.forEach(run => {
       if (typeof run.lastLatency === 'number') { sumLatency += run.lastLatency; countLatency++; }
       if (typeof run.lastSpeed === 'number') { sumSpeed += run.lastSpeed; countSpeed++; }
       if (typeof run.lastContext === 'number') { sumContext += run.lastContext; countContext++; }
-      if (typeof run.lastCost === 'number') { sumCost += run.lastCost; }
+      if (run.hasExactCost && typeof run.lastCost === 'number') {
+        sumCost += run.lastCost;
+        countCost++;
+      }
     });
 
     const avgLatency = countLatency > 0 ? Math.round(sumLatency / countLatency) : 0;
@@ -258,7 +260,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (masterMetricLatency) masterMetricLatency.textContent = `${avgLatency} ms`;
     if (masterMetricSpeed) masterMetricSpeed.textContent = `${avgSpeed} t/s`;
     if (masterMetricContext) masterMetricContext.textContent = `${avgContext} %`;
-    if (masterMetricCost) masterMetricCost.textContent = `~$ ${sumCost.toFixed(4)}`;
+    if (masterMetricCost) masterMetricCost.textContent = countCost > 0 ? `$${sumCost.toFixed(4)}` : '--';
   }
 
   function updateTabFocus() {
@@ -360,7 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="run-metric-item">
           <span class="run-metric-label">COST</span>
-          <span class="run-metric-val metric-run-cost">~$0.0000</span>
+          <span class="run-metric-val metric-run-cost">--</span>
         </div>
       </div>
     `;
@@ -404,7 +406,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="run-metric-item">
           <span class="run-metric-label">COST</span>
-          <span class="run-metric-val metric-run-cost">~$0.0000</span>
+          <span class="run-metric-val metric-run-cost">--</span>
         </div>
       </div>
 
@@ -695,7 +697,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (payload.type === 'reset_all') {
           resetAllClientState();
         } else if (payload.type === 'init_runs' && Array.isArray(payload.runs)) {
-          payload.runs.forEach(r => getOrCreateRunUI(r.run_id, r.run_name, r.color));
+          payload.runs.forEach(r => {
+            getOrCreateRunUI(r.run_id, r.run_name, r.color);
+            if (Array.isArray(r.recentEvents) && r.recentEvents.length > 0) {
+              r.recentEvents.forEach(evt => handleTelemetryEvent(evt, true));
+            }
+          });
         } else {
           handleTelemetryEvent(payload);
         }
@@ -728,7 +735,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Main Event Handler for Incoming Telemetry Packets
-  function handleTelemetryEvent(payload) {
+  function handleTelemetryEvent(payload, isInitialReplay = false) {
     const { run_id, run_name, run_color, event, message, timestamp, metadata } = payload;
     const effectiveRunId = run_id || 'cli-main';
     const toolName = metadata ? metadata.tool_name : undefined;
@@ -754,10 +761,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const isError = (event === 'task_error') || (event === 'executing_tool' && isCommandFailure(message, metadata));
 
     // 1. Audio Synthesis Cue
-    if (isError) {
-      audioEngine.trigger('task_error');
-    } else {
-      audioEngine.trigger(event, toolName);
+    if (!isInitialReplay) {
+      if (isError) {
+        audioEngine.trigger('task_error');
+      } else {
+        audioEngine.trigger(event, toolName);
+      }
     }
 
     // 2. Calculate Latency & Update Metrics
@@ -778,10 +787,17 @@ document.addEventListener('DOMContentLoaded', () => {
         if (runObj.metricsEls.context) runObj.metricsEls.context.textContent = `${metadata.context_pct} %`;
       }
       if (metadata.estimated_cost !== undefined) {
-        runObj.lastCostStr = metadata.estimated_cost;
-        const parsedCost = parseFloat(metadata.estimated_cost.replace(/[^0-9.]/g, ''));
-        if (!isNaN(parsedCost)) runObj.lastCost = parsedCost;
-        if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = metadata.estimated_cost;
+        const isExact = metadata.is_exact && metadata.estimated_cost !== '--';
+        runObj.hasExactCost = isExact;
+        runObj.lastCostStr = isExact ? metadata.estimated_cost : '--';
+        if (isExact) {
+          const parsedCost = parseFloat(metadata.estimated_cost.replace(/[^0-9.]/g, ''));
+          if (!isNaN(parsedCost)) runObj.lastCost = parsedCost;
+        } else {
+          runObj.lastCost = null;
+        }
+        if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = runObj.lastCostStr;
+        if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = runObj.lastCostStr;
       }
 
     }

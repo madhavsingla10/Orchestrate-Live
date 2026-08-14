@@ -3,6 +3,7 @@ const http = require('http');
 const ws = require('ws');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,6 +18,12 @@ app.use(express.static(path.join(__dirname, '../public'), {
   setHeaders: (res) => {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   }
+}));
+
+// Serve showcase presentation website from Frontend folder
+app.use('/frontend', express.static(path.join(__dirname, '../Frontend'), {
+  etag: false,
+  maxAge: 0
 }));
 
 // Create combined HTTP & WebSocket server
@@ -114,6 +121,7 @@ function computeLiveMetricsForRun(runId, step) {
   const runState = getOrCreateRunState(runId);
   let isStepExact = false;
   let stepInTokens = 0;
+  let stepCacheReadTokens = 0;
   let stepOutTokens = 0;
 
   const usageObj = step.usage || (step.message && step.message.usage) || (step.metadata && step.metadata.usage);
@@ -121,8 +129,11 @@ function computeLiveMetricsForRun(runId, step) {
     isStepExact = true;
     runState.hasExactUsageData = true;
     stepInTokens = usageObj.input_tokens || usageObj.prompt_tokens || 0;
+    stepCacheReadTokens = usageObj.cache_read_input_tokens || 0;
     stepOutTokens = usageObj.output_tokens || usageObj.completion_tokens || 0;
+
     runState.sessionExactInputTokens += stepInTokens;
+    runState.sessionExactCacheReadTokens = (runState.sessionExactCacheReadTokens || 0) + stepCacheReadTokens;
     runState.sessionExactOutputTokens += stepOutTokens;
   } else {
     const contentChars = (step.content || '').length;
@@ -137,9 +148,11 @@ function computeLiveMetricsForRun(runId, step) {
   }
 
   const now = step.created_at ? new Date(step.created_at).getTime() : Date.now();
-  if (runState.lastStepTimestamp) {
+  if (typeof step.tokens_per_sec === 'number' && step.tokens_per_sec > 0) {
+    runState.lastCalculatedSpeed = Math.round(step.tokens_per_sec);
+  } else if (runState.lastStepTimestamp) {
     const elapsedSec = Math.max(0.4, (now - runState.lastStepTimestamp) / 1000);
-    const stepTokens = isStepExact ? (stepInTokens + stepOutTokens) : Math.max(10, Math.round(((step.content || '').length + (step.thinking || '').length) / 4));
+    const stepTokens = isStepExact ? (stepInTokens + stepCacheReadTokens + stepOutTokens) : Math.max(10, Math.round(((step.content || '').length + (step.thinking || '').length) / 4));
     if (elapsedSec < 30) {
       runState.lastCalculatedSpeed = Math.min(180, Math.max(15, Math.round(stepTokens / elapsedSec)));
     }
@@ -147,12 +160,28 @@ function computeLiveMetricsForRun(runId, step) {
   runState.lastStepTimestamp = now;
 
   const totalInTokens = runState.hasExactUsageData ? runState.sessionExactInputTokens : Math.round(runState.sessionInputChars / 4);
+  const totalCacheReadTokens = runState.hasExactUsageData ? (runState.sessionExactCacheReadTokens || 0) : 0;
   const totalOutTokens = runState.hasExactUsageData ? runState.sessionExactOutputTokens : Math.round(runState.sessionOutputChars / 4);
-  const totalTokens = totalInTokens + totalOutTokens;
-  const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / 1000000) * 100 * 10) / 10));
+  const totalTokens = totalInTokens + totalCacheReadTokens + totalOutTokens;
 
-  const cost = (totalInTokens / 1000000) * 0.15 + (totalOutTokens / 1000000) * 0.60;
-  const estimatedCost = `${runState.hasExactUsageData ? '$' : '~$ '}${cost.toFixed(4)}`;
+  const isClaude = runId.startsWith('claude') || (runState.run_name && runState.run_name.toLowerCase().includes('claude'));
+  const isKilo = runId.startsWith('kilo') || (runState.run_name && runState.run_name.toLowerCase().includes('kilo'));
+  const maxContextWindow = (isClaude || isKilo) ? 200000 : 1000000;
+  const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / maxContextWindow) * 100 * 10) / 10));
+
+  let cost = 0;
+  if (step.cost !== undefined && step.cost !== null) {
+    cost = typeof step.cost === 'number' ? step.cost : (parseFloat(step.cost) || 0);
+    runState.hasExactUsageData = true;
+  } else if (isClaude) {
+    // Claude 3.7 / 3.5 Sonnet Rates: $3.00/1M input, $0.30/1M prompt cache read, $15.00/1M output
+    cost = (totalInTokens / 1000000) * 3.00 + (totalCacheReadTokens / 1000000) * 0.30 + (totalOutTokens / 1000000) * 15.00;
+  } else {
+    // Standard default Rates: $0.15/1M input, $0.60/1M output
+    cost = (totalInTokens / 1000000) * 0.15 + (totalOutTokens / 1000000) * 0.60;
+  }
+
+  const estimatedCost = runState.hasExactUsageData ? `$${cost.toFixed(4)}` : '--';
 
   return {
     is_exact: runState.hasExactUsageData,
@@ -263,6 +292,29 @@ function getBrainDir() {
   return null;
 }
 
+function getClaudeProjectsDir() {
+  const homeDir = process.env.USERPROFILE || process.env.HOME || '';
+  const claudePath = path.join(homeDir, '.claude/projects');
+  if (fs.existsSync(claudePath)) return claudePath;
+  return null;
+}
+
+function getKiloDbPath() {
+  const homeDir = process.env.USERPROFILE || process.env.HOME || '';
+  const candidatePaths = [
+    path.join(homeDir, '.local', 'share', 'kilo', 'kilo.db'),
+    path.join(process.env.LOCALAPPDATA || '', 'kilo', 'kilo.db'),
+    path.join(process.env.APPDATA || '', 'kilo', 'kilo.db'),
+    path.join(homeDir, '.kilo', 'kilo.db'),
+    path.join(homeDir, '.config', 'kilo', 'kilo.db')
+  ];
+
+  for (const p of candidatePaths) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return null;
+}
+
 // Track watched files and line remainders per transcript path
 const watchedTranscripts = {};
 let fileWatcherInterval = null;
@@ -277,69 +329,109 @@ function detectCliToolName(filePathOrDir) {
   return 'AI CLI';
 }
 
-function scanAndProcessTranscripts() {
-  const brainDir = getBrainDir();
-  if (!brainDir) return;
-
-  try {
-    const folders = fs.readdirSync(brainDir);
-    const cliBrand = detectCliToolName(brainDir);
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-
-    folders.forEach(folder => {
-      const transcriptPath = path.join(brainDir, folder, '.system_generated/logs/transcript.jsonl');
-      if (!fs.existsSync(transcriptPath)) return;
-
-      const stat = fs.statSync(transcriptPath);
-      // Only auto-register active sessions modified in the last 1 hour
-      if (stat.mtimeMs < oneHourAgo) return;
-
-      const runId = `conv-${folder}`;
-      let shortFolder = folder.length > 12 ? folder.substring(0, 8) : folder;
-      const runName = `${cliBrand} (${shortFolder})`;
-
-      if (!watchedTranscripts[transcriptPath]) {
-        try {
-          watchedTranscripts[transcriptPath] = {
-            run_id: runId,
-            run_name: runName,
-            currentFileSize: stat.size,
-            lineRemainder: ''
-          };
-          console.log(`[MultiWatcher] Registered active transcript watcher for [${runName}]: ${transcriptPath} (${stat.size} bytes)`);
-        } catch (err) {
-          console.error('[MultiWatcher] Error statting file:', err);
-        }
-        return;
-      }
-
-
-      const watched = watchedTranscripts[transcriptPath];
-      try {
-        const stat = fs.statSync(transcriptPath);
-
-        if (stat.size > watched.currentFileSize) {
-          const stream = fs.createReadStream(transcriptPath, {
-            start: watched.currentFileSize,
-            end: stat.size - 1
-          });
-
-          let chunk = '';
-          stream.on('data', data => { chunk += data.toString(); });
-          stream.on('end', () => {
-            watched.currentFileSize = stat.size;
-            processTranscriptChunk(chunk, watched.run_id, watched.run_name, watched);
-          });
-        } else if (stat.size < watched.currentFileSize) {
-          watched.currentFileSize = stat.size;
-        }
-      } catch (err) {
-        console.error('[MultiWatcher] Error checking file updates:', err);
-      }
-    });
-  } catch (err) {
-    console.error('[MultiWatcher] Error scanning brain directory:', err);
+function watchFileAndUpdate(transcriptPath, runId, runName, isClaude, stat) {
+  if (!watchedTranscripts[transcriptPath]) {
+    try {
+      watchedTranscripts[transcriptPath] = {
+        run_id: runId,
+        run_name: runName,
+        isClaude: isClaude,
+        currentFileSize: 0,
+        lineRemainder: ''
+      };
+      console.log(`[MultiWatcher] Registered active transcript watcher for [${runName}]: ${transcriptPath} (${stat.size} bytes)`);
+    } catch (err) {
+      console.error('[MultiWatcher] Error statting file:', err);
+      return;
+    }
   }
+
+  const watched = watchedTranscripts[transcriptPath];
+  try {
+    if (stat.size > watched.currentFileSize) {
+      const stream = fs.createReadStream(transcriptPath, {
+        start: watched.currentFileSize,
+        end: stat.size - 1
+      });
+
+      let chunk = '';
+      stream.on('data', data => { chunk += data.toString(); });
+      stream.on('end', () => {
+        watched.currentFileSize = stat.size;
+        processTranscriptChunk(chunk, watched.run_id, watched.run_name, watched);
+      });
+    } else if (stat.size < watched.currentFileSize) {
+      watched.currentFileSize = stat.size;
+    }
+  } catch (err) {
+    console.error('[MultiWatcher] Error checking file updates:', err);
+  }
+}
+
+function scanAndProcessTranscripts() {
+  const activeWindow = Date.now() - (24 * 60 * 60 * 1000); // 24 hours window for active sessions
+
+  // 1. Scan Antigravity CLI Brain Directory
+  const brainDir = getBrainDir();
+  if (brainDir) {
+    try {
+      const folders = fs.readdirSync(brainDir);
+      const cliBrand = detectCliToolName(brainDir);
+
+      folders.forEach(folder => {
+        const transcriptPath = path.join(brainDir, folder, '.system_generated/logs/transcript.jsonl');
+        if (!fs.existsSync(transcriptPath)) return;
+
+        const stat = fs.statSync(transcriptPath);
+        if (stat.mtimeMs < activeWindow) return;
+
+        const runId = `conv-${folder}`;
+        let shortFolder = folder.length > 12 ? folder.substring(0, 8) : folder;
+        const runName = `${cliBrand} (${shortFolder})`;
+
+        watchFileAndUpdate(transcriptPath, runId, runName, false, stat);
+      });
+    } catch (err) {
+      console.error('[MultiWatcher] Error scanning brain directory:', err);
+    }
+  }
+
+  // 2. Scan Claude Code CLI Projects Directory (~/.claude/projects/*/*.jsonl)
+  const claudeProjectsDir = getClaudeProjectsDir();
+  if (claudeProjectsDir) {
+    try {
+      const projFolders = fs.readdirSync(claudeProjectsDir);
+      projFolders.forEach(projFolder => {
+        const fullProjPath = path.join(claudeProjectsDir, projFolder);
+        try {
+          if (!fs.statSync(fullProjPath).isDirectory()) return;
+
+          const files = fs.readdirSync(fullProjPath);
+          files.forEach(file => {
+            if (!file.endsWith('.jsonl')) return;
+
+            const transcriptPath = path.join(fullProjPath, file);
+            const stat = fs.statSync(transcriptPath);
+            if (stat.mtimeMs < activeWindow) return;
+
+            const sessionId = file.replace('.jsonl', '');
+            const shortId = sessionId.length > 8 ? sessionId.substring(0, 8) : sessionId;
+            const runId = `claude-${shortId}`;
+            const runName = `Claude Code (${shortId})`;
+
+            watchFileAndUpdate(transcriptPath, runId, runName, true, stat);
+          });
+        } catch (e) {
+          // Ignore subfolder read errors
+        }
+      });
+    } catch (err) {
+      console.error('[MultiWatcher] Error scanning Claude Code projects directory:', err);
+    }
+  }
+
+  // 3. Scan Kilo CLI SQLite Database (~/.local/share/kilo/kilo.db)
+  scanAndProcessKiloTranscripts(activeWindow);
 }
 
 function parseStepAndBroadcastMulti(step, runId, runName) {
@@ -409,8 +501,9 @@ function parseStepAndBroadcastMulti(step, runId, runName) {
           target = toolCall.args.Url || '';
           msg = `Fetching web content from URL: ${target}`;
         } else if (toolCall.name === 'invoke_subagent' && toolCall.args) {
-          const subagents = toolCall.args.Subagents || [];
-          const roles = subagents.map(s => s.Role).join(', ');
+          let subagents = toolCall.args.Subagents || [];
+          if (typeof subagents === 'string') { try { subagents = JSON.parse(subagents); } catch (e) { subagents = []; } }
+          const roles = Array.isArray(subagents) ? subagents.map(s => s.Role).join(', ') : String(subagents);
           target = roles;
           msg = `Invoking subagents: ${roles}`;
         } else if (toolCall.name === 'send_message' && toolCall.args) {
@@ -508,6 +601,423 @@ function parseStepAndBroadcastMulti(step, runId, runName) {
   }
 }
 
+// Claude Code JSONL Step Parser & Telemetry Dispatcher
+function parseClaudeStepAndBroadcast(step, runId, runName) {
+  const timestamp = step.timestamp || new Date().toISOString();
+  const runState = getOrCreateRunState(runId, runName);
+
+  // 1. User request message
+  if (step.type === 'user' && step.message) {
+    let userMsg = '';
+    if (typeof step.message.content === 'string') {
+      userMsg = step.message.content;
+    } else if (Array.isArray(step.message.content)) {
+      userMsg = step.message.content.map(b => b.text || b.content || '').join('\n');
+    }
+
+    if (userMsg && !userMsg.includes('<local-command-caveat>') && !userMsg.includes('# Fewer Permission Prompts')) {
+      const cleanMsg = userMsg.replace(/<command-name>(.*?)<\/command-name>/gi, '$1')
+                               .replace(/<command-message>.*?<\/command-message>/gi, '')
+                               .replace(/<command-args>.*?<\/command-args>/gi, '')
+                               .replace(/<.*?>/g, '')
+                               .trim();
+      if (cleanMsg) {
+        const liveMetrics = computeLiveMetricsForRun(runId, { content: cleanMsg, created_at: timestamp });
+        broadcastTelemetry({
+          run_id: runId,
+          run_name: runState.run_name,
+          run_color: runState.color,
+          timestamp,
+          event: 'planning',
+          message: `User Request Received:\n${cleanMsg}`,
+          metadata: { ...liveMetrics }
+        });
+        runState.lastBroadcastedEvent = 'planning';
+      }
+    }
+    return;
+  }
+
+  // 2. Assistant turn with content array (thinking, text, tool_use)
+  if (step.type === 'assistant' && step.message) {
+    const liveMetrics = computeLiveMetricsForRun(runId, {
+      usage: step.message.usage,
+      created_at: timestamp
+    });
+
+    const content = step.message.content;
+    if (Array.isArray(content)) {
+      content.forEach(block => {
+        if (block.type === 'thinking' && block.thinking && block.thinking.trim()) {
+          broadcastTelemetry({
+            run_id: runId,
+            run_name: runState.run_name,
+            run_color: runState.color,
+            timestamp,
+            event: 'thinking',
+            message: block.thinking.trim(),
+            metadata: { ...liveMetrics }
+          });
+          runState.lastBroadcastedEvent = 'thinking';
+        } else if (block.type === 'tool_use') {
+          const toolName = block.name || 'tool';
+          const input = block.input || {};
+          let mappedTool = 'run_command';
+          let target = '';
+          let msg = '';
+
+          if (toolName === 'Bash') {
+            mappedTool = 'run_command';
+            target = input.command || '';
+            msg = `Executing terminal command: ${target}`;
+          } else if (['Read', 'View'].includes(toolName)) {
+            mappedTool = 'view_file';
+            target = input.file_path || input.path || '';
+            msg = `Reading file: ${path.basename(target)}`;
+          } else if (['Edit', 'Write', 'MultiEdit'].includes(toolName)) {
+            mappedTool = 'replace_file_content';
+            target = input.file_path || input.path || '';
+            msg = `Writing changes to file: ${path.basename(target)}`;
+          } else if (['Glob', 'Grep'].includes(toolName)) {
+            mappedTool = 'grep_search';
+            target = input.pattern || input.path || '';
+            msg = `Searching codebase: ${target}`;
+          } else if (['WebFetch', 'WebSearch'].includes(toolName)) {
+            mappedTool = 'search_web';
+            target = input.url || input.query || '';
+            msg = `Fetching web content: ${target}`;
+          } else if (toolName === 'Agent') {
+            mappedTool = 'invoke_subagent';
+            target = input.subagent_type || input.prompt || 'Agent';
+            msg = `Invoking subagent: ${target}`;
+          } else {
+            mappedTool = toolName.toLowerCase();
+            msg = `Invoking tool: ${toolName}`;
+          }
+
+          broadcastTelemetry({
+            run_id: runId,
+            run_name: runState.run_name,
+            run_color: runState.color,
+            timestamp,
+            event: 'executing_tool',
+            message: msg,
+            metadata: {
+              ...liveMetrics,
+              tool_name: mappedTool,
+              target: target || undefined
+            }
+          });
+          runState.lastBroadcastedEvent = 'executing_tool';
+        }
+      });
+    }
+
+    if (step.error || step.isApiErrorMessage) {
+      broadcastTelemetry({
+        run_id: runId,
+        run_name: runState.run_name,
+        run_color: runState.color,
+        timestamp,
+        event: 'task_error',
+        message: `Claude Code Error: ${step.error || 'Request failed.'}`,
+        metadata: { ...liveMetrics }
+      });
+      runState.lastBroadcastedEvent = 'task_error';
+    }
+    return;
+  }
+
+  // 3. System turn completion
+  if (step.type === 'system' && step.subtype === 'turn_duration') {
+    const liveMetrics = computeLiveMetricsForRun(runId, { created_at: timestamp });
+    broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
+      timestamp,
+      event: 'task_done',
+      message: 'Task turn finished. Awaiting next request...',
+      metadata: { ...liveMetrics }
+    });
+    runState.lastBroadcastedEvent = 'task_done';
+  }
+}
+
+// --- KILO CLI SQLITE & LOG PARSER ---
+const watchedKiloSessions = {};
+let isKiloScanning = false;
+
+function parseKiloPartAndBroadcast(row, runId, runName) {
+  let pData = {};
+  let mData = {};
+  try {
+    pData = typeof row.part_data === 'string' ? JSON.parse(row.part_data) : (row.part_data || {});
+  } catch (e) { pData = {}; }
+  try {
+    mData = typeof row.message_data === 'string' ? JSON.parse(row.message_data) : (row.message_data || {});
+  } catch (e) { mData = {}; }
+
+  const timestamp = row.time_created ? new Date(row.time_created).toISOString() : new Date().toISOString();
+  const runState = getOrCreateRunState(runId, runName);
+
+  // 1. User Message (role === 'user' and type === 'text')
+  if (mData.role === 'user' && pData.type === 'text' && pData.text && pData.text.trim()) {
+    const userText = pData.text.trim();
+    const liveMetrics = computeLiveMetricsForRun(runId, { content: userText, created_at: timestamp });
+    broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
+      timestamp,
+      event: 'planning',
+      message: `User Request Received:\n${userText}`,
+      metadata: { ...liveMetrics }
+    });
+    runState.lastBroadcastedEvent = 'planning';
+    return;
+  }
+
+  // 2. Assistant Thinking (type === 'reasoning')
+  if (pData.type === 'reasoning' && pData.text && pData.text.trim()) {
+    const liveMetrics = computeLiveMetricsForRun(runId, { thinking: pData.text, created_at: timestamp });
+    broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
+      timestamp,
+      event: 'thinking',
+      message: pData.text.trim(),
+      metadata: { ...liveMetrics }
+    });
+    runState.lastBroadcastedEvent = 'thinking';
+    return;
+  }
+
+  // 3. Assistant Tool Execution (type === 'tool')
+  if (pData.type === 'tool') {
+    const toolName = pData.tool || 'tool';
+    const state = pData.state || {};
+    const input = state.input || {};
+    let mappedTool = 'run_command';
+    let target = '';
+    let msg = '';
+
+    if (toolName === 'bash') {
+      mappedTool = 'run_command';
+      target = input.command || '';
+      msg = `Executing terminal command: ${target}`;
+    } else if (['read', 'view'].includes(toolName.toLowerCase())) {
+      mappedTool = 'view_file';
+      target = input.filePath || input.path || input.file || '';
+      msg = `Reading file: ${path.basename(target)}`;
+    } else if (['write', 'edit', 'multiedit'].includes(toolName.toLowerCase())) {
+      mappedTool = 'replace_file_content';
+      target = input.filePath || input.path || input.file || '';
+      msg = `Writing changes to file: ${path.basename(target)}`;
+    } else if (['grep', 'find', 'glob'].includes(toolName.toLowerCase())) {
+      mappedTool = 'grep_search';
+      target = input.pattern || input.path || input.query || '';
+      msg = `Searching codebase for: ${target}`;
+    } else if (['todowrite', 'todoread'].includes(toolName.toLowerCase())) {
+      mappedTool = 'mcp';
+      target = state.title || 'Workspace Tasks';
+      msg = `Updating workspace task list: ${target}`;
+    } else {
+      mappedTool = toolName.toLowerCase();
+      target = state.title || '';
+      msg = `Invoking tool: ${toolName}`;
+    }
+
+    const liveMetrics = computeLiveMetricsForRun(runId, { created_at: timestamp });
+    broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
+      timestamp,
+      event: 'executing_tool',
+      message: msg,
+      metadata: {
+        ...liveMetrics,
+        tool_name: mappedTool,
+        target: target || undefined
+      }
+    });
+    runState.lastBroadcastedEvent = 'executing_tool';
+
+    // Tool error / failure check
+    if (state.status === 'error' || state.error) {
+      broadcastTelemetry({
+        run_id: runId,
+        run_name: runState.run_name,
+        run_color: runState.color,
+        timestamp,
+        event: 'task_error',
+        message: `Kilo Tool Error: ${state.error || state.output || 'Invocation failed'}`,
+        metadata: { ...liveMetrics }
+      });
+      runState.lastBroadcastedEvent = 'task_error';
+    }
+    return;
+  }
+
+  // 4. Step Finish (type === 'step-finish')
+  if (pData.type === 'step-finish') {
+    const tokens = pData.tokens || pData.usage || {};
+    const metrics = pData.metrics || {};
+    const cost = pData.cost !== undefined ? pData.cost : row.cost;
+
+    const inputTokens = tokens.input !== undefined ? tokens.input : (tokens.input_tokens || tokens.prompt_tokens || 0);
+    const outputTokens = tokens.output !== undefined ? tokens.output : (tokens.output_tokens || tokens.completion_tokens || 0);
+    const cacheReadTokens = tokens.cache ? (tokens.cache.read || 0) : (tokens.cache_read_input_tokens || 0);
+
+    const liveMetrics = computeLiveMetricsForRun(runId, {
+      usage: {
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cache_read_input_tokens: cacheReadTokens
+      },
+      tokens_per_sec: metrics.generation ? Math.round(metrics.generation) : undefined,
+      cost: cost,
+      created_at: timestamp
+    });
+
+    const isStop = pData.reason === 'stop';
+    const eventType = isStop ? 'task_done' : (runState.lastBroadcastedEvent || 'thinking');
+    const msg = isStop ? 'Task turn finished. Awaiting next request...' : `Step completed: ${inputTokens + outputTokens} tokens processed`;
+
+    broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
+      timestamp,
+      event: eventType,
+      message: msg,
+      metadata: { ...liveMetrics }
+    });
+    if (isStop) runState.lastBroadcastedEvent = 'task_done';
+    return;
+  }
+
+  // 5. Assistant Output Text (role === 'assistant' and type === 'text')
+  if (mData.role === 'assistant' && pData.type === 'text' && pData.text && pData.text.trim()) {
+    const text = pData.text.trim();
+    const liveMetrics = computeLiveMetricsForRun(runId, { content: text, created_at: timestamp });
+    broadcastTelemetry({
+      run_id: runId,
+      run_name: runState.run_name,
+      run_color: runState.color,
+      timestamp,
+      event: 'thinking',
+      message: `Assistant Response:\n${text}`,
+      metadata: { ...liveMetrics }
+    });
+    runState.lastBroadcastedEvent = 'thinking';
+    return;
+  }
+}
+
+function scanAndProcessKiloTranscripts(activeWindow) {
+  const dbPath = getKiloDbPath();
+  if (!dbPath || isKiloScanning) return;
+
+  isKiloScanning = true;
+
+  // Query recent sessions from kilo.db
+  const sessionsQuery = `SELECT id, title, slug, directory, time_created, time_updated, cost, tokens_input, tokens_output, model FROM session ORDER BY time_updated DESC LIMIT 10;`;
+
+  try {
+    execFile('sqlite3', ['-json', dbPath, sessionsQuery], (err, stdout) => {
+      if (err) {
+        isKiloScanning = false;
+        return;
+      }
+
+      let sessions = [];
+      try {
+        sessions = JSON.parse(stdout || '[]');
+      } catch (e) {
+        isKiloScanning = false;
+        return;
+      }
+
+      if (!Array.isArray(sessions) || sessions.length === 0) {
+        isKiloScanning = false;
+        return;
+      }
+
+      const activeSessions = sessions.slice(0, 5);
+
+      if (activeSessions.length === 0) {
+        isKiloScanning = false;
+        return;
+      }
+
+      let pending = activeSessions.length;
+
+      activeSessions.forEach(session => {
+        const sessionId = session.id;
+        const shortId = sessionId.length > 8 ? sessionId.substring(sessionId.length - 8) : sessionId;
+        const runId = `kilo-${shortId}`;
+        const shortTitle = session.title ? (session.title.length > 22 ? session.title.substring(0, 20) + '...' : session.title) : (session.slug || shortId);
+        const runName = `Kilo CLI (${shortTitle})`;
+
+        if (!watchedKiloSessions[sessionId]) {
+          watchedKiloSessions[sessionId] = {
+            run_id: runId,
+            run_name: runName,
+            lastRowId: 0
+          };
+          console.log(`[MultiWatcher] Registered active Kilo CLI watcher for [${runName}]: session ${sessionId}`);
+        }
+
+        const watched = watchedKiloSessions[sessionId];
+        const partsQuery = `
+          SELECT 
+            p.rowid as row_id,
+            p.id as part_id,
+            p.session_id,
+            p.message_id,
+            p.time_created,
+            p.data as part_data,
+            m.data as message_data
+          FROM part p
+          JOIN message m ON p.message_id = m.id
+          WHERE p.session_id = '${sessionId}' AND p.rowid > ${watched.lastRowId}
+          ORDER BY p.rowid ASC;
+        `;
+
+        try {
+          execFile('sqlite3', ['-json', dbPath, partsQuery], (pErr, pStdout) => {
+            pending--;
+            if (!pErr && pStdout) {
+              try {
+                const parts = JSON.parse(pStdout || '[]');
+                if (Array.isArray(parts) && parts.length > 0) {
+                  parts.forEach(r => {
+                    watched.lastRowId = Math.max(watched.lastRowId, r.row_id);
+                    parseKiloPartAndBroadcast(r, runId, runName);
+                  });
+                }
+              } catch (e) {}
+            }
+            if (pending <= 0) {
+              isKiloScanning = false;
+            }
+          });
+        } catch (spawnErr) {
+          pending--;
+          if (pending <= 0) {
+            isKiloScanning = false;
+          }
+        }
+      });
+    });
+  } catch (outerErr) {
+    isKiloScanning = false;
+  }
+}
+
 function processTranscriptChunk(data, runId, runName, watchedObj) {
   const text = watchedObj.lineRemainder + data;
   const lines = text.split(/\r?\n/);
@@ -517,7 +1027,11 @@ function processTranscriptChunk(data, runId, runName, watchedObj) {
     if (!line.trim()) return;
     try {
       const step = JSON.parse(line);
-      parseStepAndBroadcastMulti(step, runId, runName);
+      if (watchedObj.isClaude) {
+        parseClaudeStepAndBroadcast(step, runId, runName);
+      } else {
+        parseStepAndBroadcastMulti(step, runId, runName);
+      }
     } catch (e) {
       // JSON parse errors ignored for partial lines
     }

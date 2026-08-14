@@ -272,6 +272,18 @@ body {
   gap: 1rem;
 }
 
+@media (max-width: 900px) {
+  .metrics-ribbon {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .metrics-ribbon {
+    grid-template-columns: 1fr;
+  }
+}
+
 .metric-card {
   background-color: var(--bg-surface);
   padding: 1.1rem 1.25rem;
@@ -1045,13 +1057,13 @@ body {
   width: 100%;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 900px) {
   .summary-cards-grid {
     grid-template-columns: repeat(2, 1fr);
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 480px) {
   .summary-cards-grid {
     grid-template-columns: 1fr;
   }
