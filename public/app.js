@@ -226,7 +226,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (Array.isArray(r.logs) && r.logs.length > 0) {
           runObj.logs = [];
           r.logs.forEach(logItem => {
-            appendEventToConsole(runObj, logItem.event, logItem.message, logItem.metadata, logItem.isError);
+            appendEventToConsole(runObj, logItem.event, logItem.message, logItem.metadata, logItem.isError, logItem.timestamp);
           });
         }
       });
@@ -824,7 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateRunPipelineUI(runObj, isError ? 'task_error' : event, toolName);
 
     // 4. Log to Dedicated Run Console Feed & Global Combined Feed
-    appendEventToConsole(runObj, event, message, metadata, isError);
+    appendEventToConsole(runObj, event, message, metadata, isError, timestamp);
   }
 
   function updateSinglePipelineUI(activeEvent, toolName) {
@@ -953,14 +953,14 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // Build and Append Console Row
-  function appendEventToConsole(runObj, event, message, metadata, isError = false) {
+  function appendEventToConsole(runObj, event, message, metadata, isError = false, timestampStr = null) {
     if (!message) return;
 
     if (runObj) {
       runObj.logs = runObj.logs || [];
       const lastLog = runObj.logs[runObj.logs.length - 1];
       if (!lastLog || lastLog.message !== message || lastLog.event !== event) {
-        runObj.logs.push({ event, message, metadata, isError });
+        runObj.logs.push({ event, message, metadata, isError, timestamp: timestampStr });
         if (runObj.logs.length > 150) runObj.logs.shift();
       }
     }
@@ -983,9 +983,19 @@ document.addEventListener('DOMContentLoaded', () => {
       row.dataset.runId = runObj ? runObj.run_id : '';
       if (isCollapsible) row.classList.add('collapsible', 'collapsed');
 
+      let displayTime = new Date().toTimeString().split(' ')[0];
+      if (timestampStr) {
+        try {
+          const tDate = new Date(timestampStr);
+          if (!isNaN(tDate.getTime())) {
+            displayTime = tDate.toTimeString().split(' ')[0];
+          }
+        } catch (e) {}
+      }
+
       const timestampSpan = document.createElement('span');
       timestampSpan.className = 'timestamp';
-      timestampSpan.textContent = `[${new Date().toTimeString().split(' ')[0]}]`;
+      timestampSpan.textContent = `[${displayTime}]`;
 
       if (isCollapsible) {
         const summaryDiv = document.createElement('div');

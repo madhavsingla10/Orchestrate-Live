@@ -223,6 +223,9 @@ app.get('/api/runs', (req, res) => {
 // REST POST endpoint to reset all active runs state
 app.post('/api/runs/reset', (req, res) => {
   Object.keys(runsState).forEach(key => delete runsState[key]);
+  Object.keys(watchedTranscripts).forEach(key => delete watchedTranscripts[key]);
+  Object.keys(watchedKiloSessions).forEach(key => delete watchedKiloSessions[key]);
+  lastKiloDbMtime = 0;
   runColorIdx = 0;
   
   // Broadcast reset notification to all connected clients
@@ -336,7 +339,7 @@ function watchFileAndUpdate(transcriptPath, runId, runName, isClaude, stat) {
         run_id: runId,
         run_name: runName,
         isClaude: isClaude,
-        currentFileSize: 0,
+        currentFileSize: stat.size,
         lineRemainder: ''
       };
       console.log(`[MultiWatcher] Registered active transcript watcher for [${runName}]: ${transcriptPath} (${stat.size} bytes)`);
@@ -369,7 +372,16 @@ function watchFileAndUpdate(transcriptPath, runId, runName, isClaude, stat) {
 }
 
 function scanAndProcessTranscripts() {
-  const activeWindow = Date.now() - (24 * 60 * 60 * 1000); // 24 hours window for active sessions
+  const activeWindow = Date.now() - (30 * 60 * 1000); // 30 minutes active window
+  const candidateTranscripts = [];
+
+  // Auto-prune inactive runs from runsState if no activity in activeWindow
+  const cutoffTime = Date.now() - (30 * 60 * 1000);
+  Object.keys(runsState).forEach(id => {
+    if (runsState[id].lastActivityTime && runsState[id].lastActivityTime < cutoffTime) {
+      delete runsState[id];
+    }
+  });
 
   // 1. Scan Antigravity CLI Brain Directory
   const brainDir = getBrainDir();
@@ -389,7 +401,7 @@ function scanAndProcessTranscripts() {
         let shortFolder = folder.length > 12 ? folder.substring(0, 8) : folder;
         const runName = `${cliBrand} (${shortFolder})`;
 
-        watchFileAndUpdate(transcriptPath, runId, runName, false, stat);
+        candidateTranscripts.push({ transcriptPath, runId, runName, isClaude: false, stat });
       });
     } catch (err) {
       console.error('[MultiWatcher] Error scanning brain directory:', err);
@@ -419,7 +431,7 @@ function scanAndProcessTranscripts() {
             const runId = `claude-${shortId}`;
             const runName = `Claude Code (${shortId})`;
 
-            watchFileAndUpdate(transcriptPath, runId, runName, true, stat);
+            candidateTranscripts.push({ transcriptPath, runId, runName, isClaude: true, stat });
           });
         } catch (e) {
           // Ignore subfolder read errors
@@ -429,6 +441,13 @@ function scanAndProcessTranscripts() {
       console.error('[MultiWatcher] Error scanning Claude Code projects directory:', err);
     }
   }
+
+  // Process all candidate transcripts within the active time window
+  candidateTranscripts.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+
+  candidateTranscripts.forEach(item => {
+    watchFileAndUpdate(item.transcriptPath, item.runId, item.runName, item.isClaude, item.stat);
+  });
 
   // 3. Scan Kilo CLI SQLite Database (~/.local/share/kilo/kilo.db)
   scanAndProcessKiloTranscripts(activeWindow);
@@ -917,9 +936,20 @@ function parseKiloPartAndBroadcast(row, runId, runName) {
   }
 }
 
+let lastKiloDbMtime = 0;
+
 function scanAndProcessKiloTranscripts(activeWindow) {
   const dbPath = getKiloDbPath();
   if (!dbPath || isKiloScanning) return;
+
+  try {
+    const stat = fs.statSync(dbPath);
+    if (stat.mtimeMs < activeWindow) return;
+    if (lastKiloDbMtime && stat.mtimeMs <= lastKiloDbMtime) return;
+    lastKiloDbMtime = stat.mtimeMs;
+  } catch (e) {
+    return;
+  }
 
   isKiloScanning = true;
 
@@ -946,7 +976,10 @@ function scanAndProcessKiloTranscripts(activeWindow) {
         return;
       }
 
-      const activeSessions = sessions.slice(0, 5);
+      const activeSessions = sessions.filter(session => {
+        const updatedTime = session.time_updated ? new Date(session.time_updated).getTime() : (session.time_created ? new Date(session.time_created).getTime() : 0);
+        return updatedTime >= activeWindow;
+      });
 
       if (activeSessions.length === 0) {
         isKiloScanning = false;
@@ -962,7 +995,9 @@ function scanAndProcessKiloTranscripts(activeWindow) {
         const shortTitle = session.title ? (session.title.length > 22 ? session.title.substring(0, 20) + '...' : session.title) : (session.slug || shortId);
         const runName = `Kilo CLI (${shortTitle})`;
 
+        let isInitial = false;
         if (!watchedKiloSessions[sessionId]) {
+          isInitial = true;
           watchedKiloSessions[sessionId] = {
             run_id: runId,
             run_name: runName,
@@ -996,7 +1031,9 @@ function scanAndProcessKiloTranscripts(activeWindow) {
                 if (Array.isArray(parts) && parts.length > 0) {
                   parts.forEach(r => {
                     watched.lastRowId = Math.max(watched.lastRowId, r.row_id);
-                    parseKiloPartAndBroadcast(r, runId, runName);
+                    if (!isInitial) {
+                      parseKiloPartAndBroadcast(r, runId, runName);
+                    }
                   });
                 }
               } catch (e) {}
@@ -1041,7 +1078,7 @@ function processTranscriptChunk(data, runId, runName, watchedObj) {
 function startMultiTranscriptWatcher() {
   scanAndProcessTranscripts();
   if (fileWatcherInterval) clearInterval(fileWatcherInterval);
-  fileWatcherInterval = setInterval(scanAndProcessTranscripts, 250);
+  fileWatcherInterval = setInterval(scanAndProcessTranscripts, 1000);
 }
 
 // Start listening
