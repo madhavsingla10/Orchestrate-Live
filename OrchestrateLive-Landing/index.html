@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Run AI Coding Agents in Real-Time | OrchestrateLive</title>
+  <meta name="description" content="Turn raw AI agent terminal logs into an interactive visual control room with live token counters and multi-agent monitoring. 100% Free & Open Source.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+  <!-- Navigation Bar (aoagents.dev style) -->
+  <header class="navbar">
+    <div class="nav-container">
+      <a href="#" class="brand">
+        <div class="brand-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="20" height="18" rx="4" stroke="currentColor" stroke-width="2"/>
+            <circle cx="7" cy="8" r="1.5" fill="#10B981"/>
+            <circle cx="12" cy="8" r="1.5" fill="#F59E0B"/>
+            <circle cx="17" cy="8" r="1.5" fill="#EF4444"/>
+            <path d="M6 14L10 14" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 14L18 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-opacity="0.4"/>
+            <path d="M6 18L14 18" stroke="#06B6D4" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <span>Orchestrate<span class="accent-text">Live</span></span>
+      </a>
+
+      <nav class="nav-links">
+        <a href="#see-it">Demo</a>
+        <a href="#features">Features</a>
+        <a href="#audio-engine">Audio Telemetry</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer" class="github-star-pill" id="nav-star-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#f59e0b">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <span>Star</span>
+        </a>
+        <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm">Quick Start</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section (aoagents.dev structure) -->
+  <section class="hero-section" data-section="hero">
+    <div class="hero-glow-bg"></div>
+    <div class="hero-uiverse-loader" aria-hidden="true">
+      <div class="loader"></div>
+    </div>
+
+    <div class="container hero-content">
+      <h1 class="hero-title">
+        Stop staring at text logs.<br>Start orchestrating AI in real time.
+      </h1>
+
+      <p class="hero-subheadline">
+        Watch your local AI coding agents work live. Track multi-step workflow pipelines, monitor token speeds, and listen to audio cues—100% private on your machine.
+      </p>
+
+      <!-- Primary Action Buttons -->
+      <div class="hero-actions">
+        <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-lg">Quick Start</a>
+        <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer" class="btn btn-github btn-lg" id="hero-star-btn">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"/>
+          </svg>
+          <span>Star on GitHub</span>
+        </a>
+      </div>
+
+      <!-- Install Command Bar (Matching image copy 5.png) -->
+      <div class="landing-install-command">
+        <div class="cmd-pill-bar" id="copy-cmd-pill" title="Click to copy install command">
+          <span class="cmd-prompt-symbol">$</span>
+          <code class="cmd-text">git clone https://github.com/madhavsingla10/Orchestrate-Live.git</code>
+          <span class="copy-badge">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+              <path d="M5 15V5a2 2 0 0 1 2-2h10"></path>
+            </svg>
+            Copy
+          </span>
+        </div>
+      </div>
+
+  </section>
+
+  <!-- Agent Marquee Section ("Use the agents you already trust.") -->
+  <section class="marquee-section" data-section="trusted_by">
+    <div class="container">
+      <h2 class="marquee-title">Use the agents you already trust.</h2>
+
+      <div class="agent-marquee">
+        <div class="marquee-track">
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </span>
+            <span>Kilo CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </span>
+            <span>Antigravity CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+              </svg>
+            </span>
+            <span>Claude Code</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </span>
+            <span>Kilo CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </span>
+            <span>Antigravity CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+              </svg>
+            </span>
+            <span>Claude Code</span>
+          </div>
+
+          <!-- Duplicates for seamless infinite marquee -->
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </span>
+            <span>Kilo CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </span>
+            <span>Antigravity CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+              </svg>
+            </span>
+            <span>Claude Code</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#f59e0b">
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+              </svg>
+            </span>
+            <span>Kilo CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#06b6d4" stroke-width="2">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </span>
+            <span>Antigravity CLI</span>
+          </div>
+
+          <div class="agent-logo-item">
+            <span class="agent-logo-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#a855f7">
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/>
+              </svg>
+            </span>
+            <span>Claude Code</span>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Video Showcase Section (`#see-it`) -->
+  <section class="section" id="see-it">
+    <div class="container">
+      <div style="text-align: center; max-width: 680px; margin: 0 auto 40px;">
+        <h2 class="feature-heading">See OrchestrateLive in Action</h2>
+        <p class="feature-body">
+          Watch how OrchestrateLive transforms plain terminal text into a visual command center in real time.
+        </p>
+      </div>
+
+      <div class="video-showcase-container">
+        <div class="video-bar">
+          <div style="display:flex; align-items:center; gap: 10px;">
+            <span class="live-pulse-badge">1080p 60FPS DEMO</span>
+            <span id="video-filename-display" style="font-family: var(--font-mono)">orchestrate_live_demo.mp4</span>
+          </div>
+          <button class="btn btn-secondary btn-sm" id="btn-change-video">Select Video File</button>
+        </div>
+
+        <div class="video-wrapper">
+          <video id="main-demo-video" class="showcase-vid" controls poster="./assets/hero-preview.jpg">
+            <source src="./assets/demo.mp4" type="video/mp4">
+            Your browser does not support HTML5 video.
+          </video>
+
+          <div class="upload-overlay hidden" id="upload-dropzone">
+            <input type="file" id="video-file-input" accept="video/mp4,video/webm" hidden>
+            <div class="upload-inner">
+              <div class="upload-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="17 8 12 3 7 8"></polyline>
+                  <line x1="12" y1="3" x2="12" y2="15"></line>
+                </svg>
+              </div>
+              <h3 style="font-size: 1.15rem; margin-bottom: 8px;">Select Project Demo Video</h3>
+              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
+                Choose your demo video file to preview
+              </p>
+              <button class="btn btn-secondary btn-sm" id="btn-browse-video">Select MP4 File</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Feature Showcase Deep-Dives -->
+  <section class="section" id="features" data-section="features">
+    <div class="container">
+
+      <!-- Feature 1: Visual Stage Pipeline -->
+      <div class="feature-block">
+        <div>
+          <div class="feature-tag">VISUAL PIPELINE</div>
+          <h2 class="feature-heading">Know exactly what your AI is doing</h2>
+          <p class="feature-body">
+            No more reading dense, fast-scrolling terminal logs to figure out if your AI agent is stuck in an error loop. 
+            OrchestrateLive renders a 6-stage live flowchart mapping <strong>Thought ➜ Planning ➜ Reading ➜ Writing ➜ Terminal ➜ MCP ➜ Done</strong>.
+          </p>
+        </div>
+        <div class="feature-card-display">
+          <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-emerald); margin-bottom: 16px; font-weight:600">
+            ● STAGE PROGRESSION MAP
+          </div>
+          <div style="display:flex; flex-direction:column; gap: 10px;">
+            <div style="background:var(--bg-dark); padding:12px 16px; border-radius: var(--radius-sm); border:1px solid rgba(16,185,129,0.3); display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-weight:600; color:var(--text-primary)">🧠 1. Thought</span>
+              <span style="color:var(--accent-emerald); font-family:var(--font-mono); font-size:0.8rem; font-weight:600">Active (Analyzing)</span>
+            </div>
+            <div style="background:var(--bg-dark); padding:12px 16px; border-radius: var(--radius-sm); border:1px solid var(--border-subtle); display:flex; justify-content:space-between; opacity: 0.7;">
+              <span>📋 2. Planning</span>
+              <span style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.8rem;">Queued</span>
+            </div>
+            <div style="background:var(--bg-dark); padding:12px 16px; border-radius: var(--radius-sm); border:1px solid var(--border-subtle); display:flex; justify-content:space-between; opacity: 0.7;">
+              <span>🔍 3. Reading Files</span>
+              <span style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.8rem;">Pending</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature 2: Audio Telemetry Synth Engine -->
+      <div class="feature-block" id="audio-engine">
+        <div>
+          <div class="feature-tag">AUDIO TELEMETRY</div>
+          <h2 class="feature-heading">Audible cues for background tasks</h2>
+          <p class="feature-body">
+            Keep OrchestrateLive running in a background browser tab while you work. Programmatic Web Audio sound synthesis produces distinct audio pings for long-running tool executions, file edits, and task completion.
+          </p>
+        </div>
+        <div class="feature-card-display">
+          <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-cyan); margin-bottom: 16px; font-weight:600">
+            ● WEB AUDIO SYNTHESIS BENCH
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+            <button class="btn btn-secondary btn-sm" id="snd-thought">🔊 Thinking Ping</button>
+            <button class="btn btn-secondary btn-sm" id="snd-tool">🔊 Tool Click</button>
+            <button class="btn btn-secondary btn-sm" id="snd-done">🔊 Task Done</button>
+            <button class="btn btn-secondary btn-sm" id="snd-error">🔊 Error Warning</button>
+          </div>
+
+          <div style="height: 64px; background: var(--bg-dark); border-radius: var(--radius-sm); border: 1px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            <canvas id="sound-canvas" width="340" height="64"></canvas>
+          </div>
+        </div>
+      </div>
+
+  </section>
+
+  <!-- FAQ Section (Positioned below Audible Cues and above Ready to Transform CTA) -->
+  <section class="section" id="faq" style="background-color: var(--bg-card); border-top: 1px solid var(--border-subtle); padding: 70px 0;">
+    <div class="container faq-section">
+      <div style="text-align:center; margin-bottom: 32px;">
+        <span class="faq-header-badge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          HELP & INTEGRATION FAQ
+        </span>
+        <h2 class="feature-heading">Frequently Asked Questions</h2>
+        <p class="feature-body">Everything you need to know about OrchestrateLive architecture, local privacy, and agent setup.</p>
+      </div>
+
+      <div class="faq-accordion">
+        <details class="faq-item" open>
+          <summary class="faq-question">
+            <span>Is OrchestrateLive completely free and open source?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </summary>
+          <div class="faq-answer">
+            Yes, 100%! OrchestrateLive is released under the permissive <strong>MIT License</strong>. You can run it locally, inspect the complete codebase, customize telemetry handlers, and deploy it for your team without subscriptions or cloud fees.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-question">
+            <span>Does OrchestrateLive send my code or terminal logs to cloud servers?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </summary>
+          <div class="faq-answer">
+            No, absolutely not. OrchestrateLive operates <strong>100% locally on your computer</strong> (<code>ws://localhost:3000</code>). No code snippets, project file paths, API keys, or prompt content ever leave your machine.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-question">
+            <span>Which AI CLI tools and coding assistants are supported?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </summary>
+          <div class="faq-answer">
+            OrchestrateLive works seamlessly with <strong>Kilo CLI</strong>, <strong>Antigravity CLI</strong>, and <strong>Claude Code</strong>.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-question">
+            <span>How does multi-agent parallel monitoring work?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </summary>
+          <div class="faq-answer">
+            When multiple AI agents run simultaneously on your system, OrchestrateLive automatically registers each active process and displays them in a side-by-side multi-card telemetry grid. You can observe overall progress or isolate any agent session with a single click.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-question">
+            <span>How does the Audio Telemetry sound engine work?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </summary>
+          <div class="faq-answer">
+            OrchestrateLive uses the native browser <strong>Web Audio API</strong> to synthesize real-time sound cues (thinking pings, tool execution clicks, task completion chimes, and error warnings) without loading external audio files.
+          </div>
+        </details>
+
+        <details class="faq-item">
+          <summary class="faq-question">
+            <span>How do I install and launch OrchestrateLive locally?</span>
+            <svg class="faq-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </summary>
+          <div class="faq-answer">
+            Clone the repository (<code>git clone https://github.com/madhavsingla10/Orchestrate-Live.git</code>), navigate into the <code>server/</code> folder, run <code>npm install</code>, and launch the bridge server with <code>node server.js</code>. Then open <code>http://localhost:3000</code> in your browser!
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bottom CTA Banner Section -->
+  <section class="section">
+    <div class="container">
+      <div class="cta-banner">
+        <h2 class="cta-headline">Ready to transform your AI coding workflow?</h2>
+        <p class="cta-sub">
+          Join developers building with real-time visual telemetry. 100% free and open source under MIT.
+        </p>
+        <div style="display:flex; justify-content:center; gap: 14px; flex-wrap:wrap;">
+          <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer" class="btn btn-github btn-lg" id="footer-star-btn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+            </svg>
+            <span>Star on GitHub</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <div class="footer-top">
+        <div>
+          <div style="font-weight: 600; font-size: 1.1rem; color: var(--text-primary); margin-bottom: 8px;">
+            Orchestrate<span style="color:var(--accent-emerald)">Live</span>
+          </div>
+          <p style="max-width: 300px; color: var(--text-muted)">Real-Time Visual Monitor & Control Room for AI Coding Assistants.</p>
+        </div>
+
+        <div class="footer-links">
+          <div class="footer-col">
+            <h4>Product</h4>
+            <a href="#see-it">Demo</a>
+            <a href="#features">Features</a>
+            <a href="#audio-engine">Audio Telemetry</a>
+            <a href="#faq">FAQ</a>
+          </div>
+          <div class="footer-col">
+            <h4>Open Source</h4>
+            <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer">GitHub Repository</a>
+            <a href="https://github.com/madhavsingla10/Orchestrate-Live" target="_blank" rel="noopener noreferrer" id="foot-star-prompt">Star Project</a>
+            <span style="color:var(--text-muted)">MIT License</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-top: 1px solid var(--border-subtle); padding-top: 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+        <span>© 2026 OrchestrateLive. Built for autonomous developer workflows.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

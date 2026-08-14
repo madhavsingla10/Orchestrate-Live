@@ -1,6 +1,7 @@
 # Dependency directories
 node_modules/
 server/node_modules/
+OrchestrateLive-Landing/node_modules/
 
 # Logs
 logs

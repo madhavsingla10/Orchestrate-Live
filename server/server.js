@@ -20,8 +20,12 @@ app.use(express.static(path.join(__dirname, '../public'), {
   }
 }));
 
-// Serve showcase presentation website from Frontend folder
-app.use('/frontend', express.static(path.join(__dirname, '../Frontend'), {
+// Serve showcase presentation website from OrchestrateLive-Landing folder
+app.use('/landing', express.static(path.join(__dirname, '../OrchestrateLive-Landing'), {
+  etag: false,
+  maxAge: 0
+}));
+app.use('/frontend', express.static(path.join(__dirname, '../OrchestrateLive-Landing'), {
   etag: false,
   maxAge: 0
 }));

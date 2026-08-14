@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OrchestrateLive — AI Agent Telemetry Dashboard</title>
+  
+  <!-- Typography Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- Top Header Bar -->
+    <header class="app-header">
+      <div class="brand">
+        <h1>Orchestrate<span>Live</span></h1>
+        <div id="connection-badge" class="connection-status connected">CONNECTED</div>
+        <div id="active-runs-count" class="badge-active-runs">4 Active Runs</div>
+      </div>
+      <div class="header-right-controls">
+        <button id="sim-start-btn" class="btn btn-sim-trigger" style="background:#00e676; color:#09090b; font-weight:700; border:none; padding:6px 14px; border-radius:6px; cursor:pointer;">
+          ▶ Run Live Demo
+        </button>
+        <button id="reset-dashboard-btn" class="btn btn-reset-toggle" title="Reset all metrics and runs">
+          Reset
+        </button>
+        <button id="audio-toggle" class="btn btn-audio-toggle">
+          <span class="icon">🔊</span> Audio Enabled
+        </button>
+      </div>
+    </header>
+
+    <!-- Multi-Run Navigation Bar -->
+    <section class="run-tabs-section">
+      <div class="run-tabs-nav-wrapper">
+        <div class="run-tabs-bar" id="run-tab-bar">
+          <button class="run-tab active" data-run-id="all">
+            <span class="run-tab-dot" style="background-color: #00f5ff; box-shadow: 0 0 8px #00f5ff;"></span>
+            <span class="run-tab-label">All Runs</span>
+          </button>
+          <button class="run-tab" data-run-id="run-1">
+            <span class="run-tab-dot" style="background-color: #f59e0b;"></span>
+            <span class="run-tab-label">Claude Code (w2458a12)</span>
+          </button>
+          <button class="run-tab" data-run-id="run-2">
+            <span class="run-tab-dot" style="background-color: #00f5ff;"></span>
+            <span class="run-tab-label">Antigravity CLI</span>
+          </button>
+          <button class="run-tab" data-run-id="run-3">
+            <span class="run-tab-dot" style="background-color: #00e676;"></span>
+            <span class="run-tab-label">Kilo CLI (e53b43b2)</span>
+          </button>
+          <button class="run-tab" data-run-id="run-4">
+            <span class="run-tab-dot" style="background-color: #c084fc;"></span>
+            <span class="run-tab-label">Antigravity CLI (7a58e693)</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Combined Master Metrics Ribbon for All Runs Grid View -->
+    <section id="master-metrics-ribbon" class="metrics-ribbon">
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">PIPELINE LATENCY</span>
+          <span class="metric-badge avg">AVG LATENCY</span>
+        </div>
+        <span id="master-metric-latency" class="metric-value">13,490 ms</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">PROCESSING SPEED</span>
+          <span class="metric-badge avg">AVG SPEED</span>
+        </div>
+        <span id="master-metric-speed" class="metric-value">49 t/s</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">CONTEXT WINDOW</span>
+          <span class="metric-badge avg">AVG CONTEXT</span>
+        </div>
+        <span id="master-metric-context" class="metric-value">31.2 %</span>
+      </div>
+      <div class="metric-card">
+        <div class="metric-header">
+          <span class="metric-label">TOTAL TOKENS</span>
+          <span class="metric-badge in-out">IN / OUT</span>
+        </div>
+        <span id="master-metric-cost" class="metric-value">9,280 in / 2,900 out</span>
+      </div>
+    </section>
+
+    <!-- 4-in-a-Row Square Summary Cards Grid -->
+    <section id="summary-cards-container" class="summary-cards-grid">
+      <!-- Dynamic Square Summary Cards will be rendered here -->
+    </section>
+
+    <!-- Multi-Run Parallel Split Grid Container (Detailed Cards below) -->
+    <section id="multi-run-container" class="multi-run-grid parallel-mode">
+      <!-- Dynamic Detailed Run Cards will be rendered here -->
+    </section>
+
+    <!-- Single Focus Mode Section (Shown when an individual CLI tab is selected) -->
+    <div id="single-focus-section" class="single-focus-view hidden">
+      <!-- Metrics Ribbon -->
+      <section class="metrics-ribbon">
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">PIPELINE LATENCY</span>
+            <span class="metric-badge realtime">REAL-TIME</span>
+          </div>
+          <span id="metric-latency" class="metric-value">-- ms</span>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">PROCESSING SPEED</span>
+            <span id="badge-speed" class="metric-badge live">LIVE</span>
+          </div>
+          <span id="metric-speed" class="metric-value">-- t/s</span>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">CONTEXT WINDOW</span>
+            <span id="badge-context" class="metric-badge live">LIVE</span>
+          </div>
+          <span id="metric-context" class="metric-value">-- %</span>
+        </div>
+        <div class="metric-card">
+          <div class="metric-header">
+            <span class="metric-label">TOTAL TOKENS</span>
+            <span id="badge-cost" class="metric-badge in-out">IN / OUT</span>
+          </div>
+          <span id="metric-cost" class="metric-value">-- in / -- out</span>
+        </div>
+      </section>
+
+      <!-- Single Pipeline Flow Diagram -->
+      <section class="pipeline-section" id="single-pipeline-container">
+        <div class="pipeline-flow" id="single-pipeline-flow">
+          <div class="pipeline-node" id="node-thinking">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Thought</div>
+            <div class="node-sub">Analyzing</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-planning">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Planning</div>
+            <div class="node-sub">Structuring</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-reading">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Reading</div>
+            <div class="node-sub">Files & Search</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-writing">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Writing</div>
+            <div class="node-sub">Editing Code</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-terminal">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Terminal</div>
+            <div class="node-sub">Commands</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-mcp">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">MCP</div>
+            <div class="node-sub">Tools</div>
+          </div>
+          <div class="flow-arrow"></div>
+          <div class="pipeline-node" id="node-task_done">
+            <div class="indicator-ring"><div class="indicator-dot"></div></div>
+            <div class="node-label">Done</div>
+            <div class="node-sub">Completed</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Console Viewport -->
+      <section class="console-section">
+        <div class="console-header">
+          <div class="console-title-group">
+            <h2>Live Activity Feed</h2>
+            <span id="log-count-badge" class="log-count-badge">0 Events</span>
+          </div>
+          <div class="console-controls">
+            <div class="search-input-wrapper">
+              <span class="search-icon">🔍</span>
+              <input type="text" id="log-search-input" placeholder="Filter logs..." />
+              <button id="btn-regex-toggle" class="btn-mini" title="Toggle Regex Search">.*</button>
+            </div>
+            <div class="filter-pills" id="filter-pills">
+              <button class="filter-pill active" data-filter="all">All</button>
+              <button class="filter-pill" data-filter="thinking">Thought</button>
+              <button class="filter-pill" data-filter="executing_tool">Tool Call</button>
+              <button class="filter-pill" data-filter="mcp">MCP</button>
+              <button class="filter-pill" data-filter="terminal">Terminal</button>
+              <button class="filter-pill" data-filter="task_error">Errors</button>
+            </div>
+            <div class="console-actions">
+              <button id="autoscroll-toggle-btn" class="btn btn-secondary btn-autoscroll active" title="Toggle Autoscroll Lock">
+                <span class="icon">⬇</span> Auto
+              </button>
+              <button id="clear-console-btn" class="btn btn-secondary">Clear</button>
+            </div>
+          </div>
+        </div>
+        <div class="console-viewport font-mono" id="console-feed">
+          <div class="console-row system-msg" data-event-type="system-msg">
+            <span class="timestamp">[00:00:00]</span>
+            <span class="message">Waiting for agent telemetry stream...</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+
+  <!-- Reset Modal -->
+  <div id="reset-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-icon-warning">⚠️</div>
+        <h3>Reset All Telemetry Data?</h3>
+      </div>
+      <p class="modal-body-text">
+        This action will permanently delete all stored metrics, active CLI runs, console log history, and browser storage.
+      </p>
+      <div class="modal-actions">
+        <button id="btn-cancel-reset" class="btn btn-secondary">Cancel</button>
+        <button id="btn-confirm-reset" class="btn btn-danger">Confirm Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Telemetry JS Modules -->
+  <script src="audio-engine.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
