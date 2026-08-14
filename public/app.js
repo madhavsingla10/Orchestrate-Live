@@ -87,6 +87,18 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function formatSingleTokenCount(num) {
+    if (typeof num !== 'number' || isNaN(num)) return '0';
+    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+    if (num >= 1000) return (num / 1000).toFixed(1) + 'k';
+    return num.toLocaleString();
+  }
+
+  function formatTokenPair(inTokens, outTokens) {
+    if (typeof inTokens !== 'number' || typeof outTokens !== 'number') return '-- in / -- out';
+    return `${formatSingleTokenCount(inTokens)} in / ${formatSingleTokenCount(outTokens)} out`;
+  }
+
   function resetAllClientState() {
     try {
       localStorage.removeItem('orchestrate_runs_v3');
@@ -112,7 +124,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (masterMetricLatency) masterMetricLatency.textContent = '-- ms';
     if (masterMetricSpeed) masterMetricSpeed.textContent = '-- t/s';
     if (masterMetricContext) masterMetricContext.textContent = '-- %';
-    if (masterMetricCost) masterMetricCost.textContent = '~$0.0000';
+    if (masterMetricCost) masterMetricCost.textContent = '-- in / -- out';
 
     if (activeRunsCountBadge) activeRunsCountBadge.textContent = '0 Active Runs';
 
@@ -152,7 +164,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function persistRunsState() {
-
     try {
       const serialized = {};
       Object.keys(runsStore).forEach(id => {
@@ -164,8 +175,10 @@ document.addEventListener('DOMContentLoaded', () => {
           lastLatency: r.lastLatency,
           lastSpeed: r.lastSpeed,
           lastContext: r.lastContext,
-          lastCost: r.lastCost,
-          lastCostStr: r.lastCostStr,
+          isExactTokens: r.isExactTokens,
+          inputTokens: r.inputTokens,
+          outputTokens: r.outputTokens,
+          lastTokensStr: r.lastTokensStr,
           lastActiveEvent: r.lastActiveEvent,
           lastToolName: r.lastToolName,
           statusBadgeText: r.statusBadgeText,
@@ -198,13 +211,13 @@ document.addEventListener('DOMContentLoaded', () => {
           if (runObj.metricsEls.context) runObj.metricsEls.context.textContent = `${r.lastContext} %`;
           if (runObj.metricsEls.summaryContext) runObj.metricsEls.summaryContext.textContent = `${r.lastContext} %`;
         }
-        if (typeof r.lastCost === 'number') {
-          runObj.lastCost = r.lastCost;
-        }
-        if (r.lastCostStr) {
-          runObj.lastCostStr = r.lastCostStr;
-          if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = r.lastCostStr;
-          if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = r.lastCostStr;
+        if (r.isExactTokens && typeof r.inputTokens === 'number' && typeof r.outputTokens === 'number') {
+          runObj.isExactTokens = true;
+          runObj.inputTokens = r.inputTokens;
+          runObj.outputTokens = r.outputTokens;
+          runObj.lastTokensStr = r.lastTokensStr || formatTokenPair(r.inputTokens, r.outputTokens);
+          if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = runObj.lastTokensStr;
+          if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = runObj.lastTokensStr;
         }
         if (r.lastActiveEvent) {
           runObj.lastActiveEvent = r.lastActiveEvent;
@@ -242,14 +255,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let sumLatency = 0, countLatency = 0;
     let sumSpeed = 0, countSpeed = 0;
     let sumContext = 0, countContext = 0;
-    let sumCost = 0, countCost = 0;
+    let totalIn = 0, totalOut = 0, countTokens = 0;
     runs.forEach(run => {
       if (typeof run.lastLatency === 'number') { sumLatency += run.lastLatency; countLatency++; }
       if (typeof run.lastSpeed === 'number') { sumSpeed += run.lastSpeed; countSpeed++; }
       if (typeof run.lastContext === 'number') { sumContext += run.lastContext; countContext++; }
-      if (run.hasExactCost && typeof run.lastCost === 'number') {
-        sumCost += run.lastCost;
-        countCost++;
+      if (run.isExactTokens && typeof run.inputTokens === 'number' && typeof run.outputTokens === 'number') {
+        totalIn += run.inputTokens;
+        totalOut += run.outputTokens;
+        countTokens++;
       }
     });
 
@@ -260,7 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (masterMetricLatency) masterMetricLatency.textContent = `${avgLatency} ms`;
     if (masterMetricSpeed) masterMetricSpeed.textContent = `${avgSpeed} t/s`;
     if (masterMetricContext) masterMetricContext.textContent = `${avgContext} %`;
-    if (masterMetricCost) masterMetricCost.textContent = countCost > 0 ? `$${sumCost.toFixed(4)}` : '--';
+    if (masterMetricCost) masterMetricCost.textContent = countTokens > 0 ? formatTokenPair(totalIn, totalOut) : '-- in / -- out';
   }
 
   function updateTabFocus() {
@@ -294,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
       // Reset badges to Live / Real-Time for single run
       if (badgeSpeed) { badgeSpeed.className = 'metric-badge live'; badgeSpeed.textContent = 'LIVE'; }
       if (badgeContext) { badgeContext.className = 'metric-badge live'; badgeContext.textContent = 'LIVE'; }
-      if (badgeCost) { badgeCost.className = 'metric-badge estimated'; badgeCost.textContent = 'EST. COST'; }
+      if (badgeCost) { badgeCost.className = 'metric-badge in-out'; badgeCost.textContent = 'IN / OUT'; }
 
       // Populate Focus View Metrics & Pipeline Map with this specific CLI's state
       const targetRun = runsStore[activeTabRunId];
@@ -302,7 +316,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (metricLatency) metricLatency.textContent = targetRun.metricsEls.latency ? targetRun.metricsEls.latency.textContent : '-- ms';
         if (metricSpeed) metricSpeed.textContent = targetRun.metricsEls.speed ? targetRun.metricsEls.speed.textContent : '-- t/s';
         if (metricContext) metricContext.textContent = targetRun.metricsEls.context ? targetRun.metricsEls.context.textContent : '-- %';
-        if (metricCost) metricCost.textContent = targetRun.metricsEls.cost ? targetRun.metricsEls.cost.textContent : '~$0.0000';
+        if (metricCost) metricCost.textContent = targetRun.metricsEls.cost ? targetRun.metricsEls.cost.textContent : '-- in / -- out';
         updateSinglePipelineUI(targetRun.lastActiveEvent || 'idle', targetRun.lastToolName);
       }
 
@@ -361,8 +375,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="run-metric-val metric-run-context">-- %</span>
         </div>
         <div class="run-metric-item">
-          <span class="run-metric-label">COST</span>
-          <span class="run-metric-val metric-run-cost">--</span>
+          <span class="run-metric-label">TOKENS</span>
+          <span class="run-metric-val metric-run-cost">-- in / -- out</span>
         </div>
       </div>
     `;
@@ -405,8 +419,8 @@ document.addEventListener('DOMContentLoaded', () => {
           <span class="run-metric-val metric-run-context">-- %</span>
         </div>
         <div class="run-metric-item">
-          <span class="run-metric-label">COST</span>
-          <span class="run-metric-val metric-run-cost">--</span>
+          <span class="run-metric-label">TOKENS</span>
+          <span class="run-metric-val metric-run-cost">-- in / -- out</span>
         </div>
       </div>
 
@@ -500,10 +514,35 @@ document.addEventListener('DOMContentLoaded', () => {
       lastEditingFile: ''
     };
 
-
-
     updateActiveRunsCount();
     return runsStore[runId];
+  }
+
+  let previousRunCount = 0;
+
+  function autoManageTabSelection() {
+    const runIds = Object.keys(runsStore);
+    const count = runIds.length;
+
+    if (count === 1 && previousRunCount !== 1) {
+      activeTabRunId = runIds[0];
+      if (runTabBar) {
+        runTabBar.querySelectorAll('.run-tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.runId === activeTabRunId);
+        });
+      }
+      updateTabFocus();
+    } else if (count > 1 && (previousRunCount <= 1 || activeTabRunId !== 'all')) {
+      activeTabRunId = 'all';
+      if (runTabBar) {
+        runTabBar.querySelectorAll('.run-tab').forEach(t => {
+          t.classList.toggle('active', t.dataset.runId === 'all');
+        });
+      }
+      updateTabFocus();
+    }
+
+    previousRunCount = count;
   }
 
   function updateActiveRunsCount() {
@@ -511,6 +550,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (activeRunsCountBadge) {
       activeRunsCountBadge.textContent = `${count} Active Run${count !== 1 ? 's' : ''}`;
     }
+    autoManageTabSelection();
   }
 
   // Updates pipeline nodes for a specific run
@@ -538,13 +578,17 @@ document.addEventListener('DOMContentLoaded', () => {
       badgeText = toolName ? formatToolBadgeName(toolName) : 'EXECUTING';
       badgeClass = 'executing_tool';
 
+      const lower = (toolName || '').toLowerCase();
       let activeNodeName = 'reading';
-      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens'].includes(toolName))) {
+
+      if (lower.includes('mcp') || lower.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'todowrite', 'todoread'].includes(lower)) {
         activeNodeName = 'mcp';
-      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action'].includes(toolName)) {
+      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action', 'write', 'edit', 'multiedit'].includes(lower) || lower.includes('write') || lower.includes('edit')) {
         activeNodeName = 'writing';
-      } else if (toolName === 'run_command') {
+      } else if (['run_command', 'bash', 'terminal', 'cmd'].includes(lower) || lower.includes('bash') || lower.includes('command')) {
         activeNodeName = 'terminal';
+      } else {
+        activeNodeName = 'reading';
       }
 
       if (runObj.nodes && runObj.nodes[activeNodeName]) runObj.nodes[activeNodeName].classList.add('active');
@@ -776,30 +820,34 @@ document.addEventListener('DOMContentLoaded', () => {
     runObj.lastLatency = latency;
 
     if (runObj.metricsEls.latency) runObj.metricsEls.latency.textContent = `${latency} ms`;
+    if (runObj.metricsEls.summaryLatency) runObj.metricsEls.summaryLatency.textContent = `${latency} ms`;
     
     if (metadata) {
       if (metadata.tokens_per_sec !== undefined) {
         runObj.lastSpeed = metadata.tokens_per_sec;
         if (runObj.metricsEls.speed) runObj.metricsEls.speed.textContent = `${metadata.tokens_per_sec} t/s`;
+        if (runObj.metricsEls.summarySpeed) runObj.metricsEls.summarySpeed.textContent = `${metadata.tokens_per_sec} t/s`;
       }
       if (metadata.context_pct !== undefined) {
         runObj.lastContext = metadata.context_pct;
         if (runObj.metricsEls.context) runObj.metricsEls.context.textContent = `${metadata.context_pct} %`;
+        if (runObj.metricsEls.summaryContext) runObj.metricsEls.summaryContext.textContent = `${metadata.context_pct} %`;
       }
-      if (metadata.estimated_cost !== undefined) {
-        const isExact = metadata.is_exact && metadata.estimated_cost !== '--';
-        runObj.hasExactCost = isExact;
-        runObj.lastCostStr = isExact ? metadata.estimated_cost : '--';
-        if (isExact) {
-          const parsedCost = parseFloat(metadata.estimated_cost.replace(/[^0-9.]/g, ''));
-          if (!isNaN(parsedCost)) runObj.lastCost = parsedCost;
-        } else {
-          runObj.lastCost = null;
-        }
-        if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = runObj.lastCostStr;
-        if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = runObj.lastCostStr;
+      if (metadata.is_exact && typeof metadata.input_tokens === 'number' && typeof metadata.output_tokens === 'number') {
+        runObj.isExactTokens = true;
+        runObj.inputTokens = metadata.input_tokens;
+        runObj.outputTokens = metadata.output_tokens;
+        runObj.cacheReadTokens = metadata.cache_read_tokens || 0;
+        const tokenStr = formatTokenPair(metadata.input_tokens, metadata.output_tokens);
+        runObj.lastTokensStr = tokenStr;
+        if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = tokenStr;
+        if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = tokenStr;
+      } else if (metadata.is_exact === false) {
+        runObj.isExactTokens = false;
+        runObj.lastTokensStr = '-- in / -- out';
+        if (runObj.metricsEls.cost) runObj.metricsEls.cost.textContent = '-- in / -- out';
+        if (runObj.metricsEls.summaryCost) runObj.metricsEls.summaryCost.textContent = '-- in / -- out';
       }
-
     }
 
     // Persist runs state to localStorage for refresh retention
@@ -813,7 +861,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (metadata) {
         if (metadata.tokens_per_sec !== undefined && metricSpeed) metricSpeed.textContent = `${metadata.tokens_per_sec} t/s`;
         if (metadata.context_pct !== undefined && metricContext) metricContext.textContent = `${metadata.context_pct} %`;
-        if (metadata.estimated_cost !== undefined && metricCost) metricCost.textContent = metadata.estimated_cost;
+        if (metricCost) metricCost.textContent = runObj.lastTokensStr || '--';
       }
       updateSinglePipelineUI(isError ? 'task_error' : event, toolName);
     }

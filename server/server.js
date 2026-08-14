@@ -169,25 +169,13 @@ function computeLiveMetricsForRun(runId, step) {
   const maxContextWindow = (isClaude || isKilo) ? 200000 : 1000000;
   const contextPct = Math.min(100, Math.max(0.1, Math.round((totalTokens / maxContextWindow) * 100 * 10) / 10));
 
-  let cost = 0;
-  if (step.cost !== undefined && step.cost !== null) {
-    cost = typeof step.cost === 'number' ? step.cost : (parseFloat(step.cost) || 0);
-    runState.hasExactUsageData = true;
-  } else if (isClaude) {
-    // Claude 3.7 / 3.5 Sonnet Rates: $3.00/1M input, $0.30/1M prompt cache read, $15.00/1M output
-    cost = (totalInTokens / 1000000) * 3.00 + (totalCacheReadTokens / 1000000) * 0.30 + (totalOutTokens / 1000000) * 15.00;
-  } else {
-    // Standard default Rates: $0.15/1M input, $0.60/1M output
-    cost = (totalInTokens / 1000000) * 0.15 + (totalOutTokens / 1000000) * 0.60;
-  }
-
-  const estimatedCost = runState.hasExactUsageData ? `$${cost.toFixed(4)}` : '--';
-
   return {
     is_exact: runState.hasExactUsageData,
     tokens_per_sec: runState.lastCalculatedSpeed,
     context_pct: contextPct,
-    estimated_cost: estimatedCost
+    input_tokens: runState.hasExactUsageData ? runState.sessionExactInputTokens : null,
+    output_tokens: runState.hasExactUsageData ? runState.sessionExactOutputTokens : null,
+    cache_read_tokens: runState.hasExactUsageData ? (runState.sessionExactCacheReadTokens || 0) : null
   };
 }
 

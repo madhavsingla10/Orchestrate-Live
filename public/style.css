@@ -334,11 +334,12 @@ body {
 }
 
 .metric-badge.estimated,
-.metric-badge.approx {
-  background-color: rgba(168, 85, 247, 0.1);
+.metric-badge.approx,
+.metric-badge.in-out {
+  background-color: rgba(168, 85, 247, 0.12);
   color: #c084fc;
-  border: 1px solid rgba(168, 85, 247, 0.25);
-  box-shadow: 0 0 6px rgba(168, 85, 247, 0.1);
+  border: 1px solid rgba(168, 85, 247, 0.35);
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.15);
 }
 
 .metric-badge.avg {
@@ -426,85 +427,104 @@ body {
 
 /* Node States */
 /* 1. Thinking Node Active */
-#node-thinking.active .indicator-ring {
+#node-thinking.active .indicator-ring,
+.node-run-thinking.active .indicator-ring {
   background-color: rgba(6, 182, 212, 0.1);
 }
-#node-thinking.active .indicator-dot {
+#node-thinking.active .indicator-dot,
+.node-run-thinking.active .indicator-dot {
   background-color: var(--color-thinking);
   box-shadow: 0 0 12px 4px var(--color-thinking);
   animation: pulse-cyan 1.5s infinite;
 }
-#node-thinking.active .node-label {
+#node-thinking.active .node-label,
+.node-run-thinking.active .node-label {
   color: var(--text-primary);
 }
 
 /* 2. Planning Node Active */
-#node-planning.active .indicator-ring {
+#node-planning.active .indicator-ring,
+.node-run-planning.active .indicator-ring {
   background-color: rgba(245, 158, 11, 0.1);
 }
-#node-planning.active .indicator-dot {
+#node-planning.active .indicator-dot,
+.node-run-planning.active .indicator-dot {
   background-color: var(--color-planning);
   box-shadow: 0 0 12px 4px var(--color-planning);
   animation: pulse-amber 1.5s infinite;
 }
-#node-planning.active .node-label {
+#node-planning.active .node-label,
+.node-run-planning.active .node-label {
   color: var(--text-primary);
 }
 
 /* 3. Reading Node Active */
-#node-reading.active .indicator-ring {
+#node-reading.active .indicator-ring,
+.node-run-reading.active .indicator-ring {
   background-color: rgba(14, 165, 233, 0.1);
 }
-#node-reading.active .indicator-dot {
+#node-reading.active .indicator-dot,
+.node-run-reading.active .indicator-dot {
   background-color: var(--color-reading);
   box-shadow: 0 0 12px 4px var(--color-reading);
   animation: pulse-reading 1.5s infinite;
 }
-#node-reading.active .node-label {
+#node-reading.active .node-label,
+.node-run-reading.active .node-label {
   color: var(--text-primary);
 }
 
 /* 4. Writing Node Active */
-#node-writing.active .indicator-ring {
+#node-writing.active .indicator-ring,
+.node-run-writing.active .indicator-ring {
   background-color: rgba(16, 185, 129, 0.1);
 }
-#node-writing.active .indicator-dot {
+#node-writing.active .indicator-dot,
+.node-run-writing.active .indicator-dot {
   background-color: var(--color-writing);
   box-shadow: 0 0 12px 4px var(--color-writing);
   animation: pulse-writing 1.5s infinite;
 }
-#node-writing.active .node-label {
+#node-writing.active .node-label,
+.node-run-writing.active .node-label {
   color: var(--text-primary);
 }
 
 /* 5. Terminal Node Active */
-#node-terminal.active .indicator-ring {
+#node-terminal.active .indicator-ring,
+.node-run-terminal.active .indicator-ring {
   background-color: rgba(168, 85, 247, 0.1);
 }
-#node-terminal.active .indicator-dot {
+#node-terminal.active .indicator-dot,
+.node-run-terminal.active .indicator-dot {
   background-color: var(--color-terminal);
   box-shadow: 0 0 12px 4px var(--color-terminal);
   animation: pulse-terminal 1.5s infinite;
 }
-#node-terminal.active .node-label {
+#node-terminal.active .node-label,
+.node-run-terminal.active .node-label {
   color: var(--text-primary);
 }
 
 /* 6. MCP Node Active */
-#node-mcp.active .indicator-ring {
+#node-mcp.active .indicator-ring,
+.node-run-mcp.active .indicator-ring {
   background-color: rgba(0, 245, 255, 0.12);
 }
-#node-mcp.active .indicator-dot {
+#node-mcp.active .indicator-dot,
+.node-run-mcp.active .indicator-dot {
   background-color: #00f5ff;
   box-shadow: 0 0 12px 4px #00f5ff;
   animation: pulse-mcp 1.5s infinite;
 }
-#node-mcp.active .node-label {
+#node-mcp.active .node-label,
+.node-run-mcp.active .node-label {
   color: var(--text-primary);
 }
 
 /* 7. Done Node Active */
-#node-task_done.active .indicator-ring {
+#node-task_done.active .indicator-ring,
+.node-run-task_done.active .indicator-ring {
   background-color: rgba(16, 185, 129, 0.1);
 }
 #node-task_done.active .indicator-dot {
@@ -1216,6 +1236,12 @@ body {
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.run-metric-val.metric-run-cost {
+  font-size: 0.92rem;
+  white-space: nowrap;
+  letter-spacing: -0.02em;
 }
 
 /* Pipeline Flow Map inside Run Card */
