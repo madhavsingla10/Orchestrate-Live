@@ -225,7 +225,7 @@
     </div>
   </section>
 
-  <!-- Video Showcase Section (`#see-it`) -->
+  <!-- Image Showcase Section (`#see-it`) -->
   <section class="section" id="see-it">
     <div class="container">
       <div style="text-align: center; max-width: 680px; margin: 0 auto 40px;">
@@ -236,37 +236,8 @@
       </div>
 
       <div class="video-showcase-container">
-        <div class="video-bar">
-          <div style="display:flex; align-items:center; gap: 10px;">
-            <span class="live-pulse-badge">1080p 60FPS DEMO</span>
-            <span id="video-filename-display" style="font-family: var(--font-mono)">orchestrate_live_demo.mp4</span>
-          </div>
-          <button class="btn btn-secondary btn-sm" id="btn-change-video">Select Video File</button>
-        </div>
-
-        <div class="video-wrapper">
-          <video id="main-demo-video" class="showcase-vid" controls poster="/assets/hero-preview--uxKgt-W.jpg">
-            <source src="./assets/demo.mp4" type="video/mp4">
-            Your browser does not support HTML5 video.
-          </video>
-
-          <div class="upload-overlay hidden" id="upload-dropzone">
-            <input type="file" id="video-file-input" accept="video/mp4,video/webm" hidden>
-            <div class="upload-inner">
-              <div class="upload-icon">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="17 8 12 3 7 8"></polyline>
-                  <line x1="12" y1="3" x2="12" y2="15"></line>
-                </svg>
-              </div>
-              <h3 style="font-size: 1.15rem; margin-bottom: 8px;">Select Project Demo Video</h3>
-              <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">
-                Choose your demo video file to preview
-              </p>
-              <button class="btn btn-secondary btn-sm" id="btn-browse-video">Select MP4 File</button>
-            </div>
-          </div>
+        <div style="border-radius: var(--radius-md); overflow: hidden; border: 1px solid var(--border-subtle); box-shadow: var(--shadow-card);">
+          <img src="/assets/image-CyadopDg.png" alt="OrchestrateLive Real-Time Visual Monitor" style="width: 100%; height: auto; display: block;">
         </div>
       </div>
     </div>

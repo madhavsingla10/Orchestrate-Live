@@ -18,7 +18,18 @@
     <!-- Top Header Bar -->
     <header class="app-header">
       <div class="brand">
-        <h1>Orchestrate<span>Live</span></h1>
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="2" y="3" width="20" height="18" rx="4" stroke="currentColor" stroke-width="2"/>
+            <circle cx="7" cy="8" r="1.5" fill="#10B981"/>
+            <circle cx="12" cy="8" r="1.5" fill="#F59E0B"/>
+            <circle cx="17" cy="8" r="1.5" fill="#EF4444"/>
+            <path d="M6 14L10 14" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
+            <path d="M12 14L18 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-opacity="0.4"/>
+            <path d="M6 18L14 18" stroke="#06B6D4" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h1>Orchestrate<span class="accent-text">Live</span></h1>
         <div id="connection-badge" class="connection-status disconnected">Disconnected</div>
         <div id="active-runs-count" class="badge-active-runs">0 Active Runs</div>
       </div>

@@ -249,8 +249,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
   function computeMasterFocusMetrics() {
-    const runs = Object.values(runsStore);
-    if (runs.length === 0) return;
+    const runs = Object.values(runsStore).filter(r => !r.isMinimized);
+    if (runs.length === 0) {
+      if (masterMetricLatency) masterMetricLatency.textContent = '-- ms';
+      if (masterMetricSpeed) masterMetricSpeed.textContent = '-- t/s';
+      if (masterMetricContext) masterMetricContext.textContent = '-- %';
+      if (masterMetricCost) masterMetricCost.textContent = '-- in / -- out';
+      return;
+    }
 
     let sumLatency = 0, countLatency = 0;
     let sumSpeed = 0, countSpeed = 0;
@@ -358,7 +364,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="run-color-bar" style="background-color: ${color};"></div>
           <div class="run-title">${escapeHtml(name)}</div>
         </div>
-        <div class="run-status-badge IDLE">IDLE</div>
+        <div class="card-header-actions">
+          <div class="run-status-badge IDLE">IDLE</div>
+          <button class="btn-card-toggle" title="Minimize / Disable Card" data-run-id="${runId}">−</button>
+        </div>
       </div>
 
       <div class="run-metrics-strip">
@@ -381,13 +390,21 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    summaryCardEl.addEventListener('click', () => {
+    summaryCardEl.addEventListener('click', (e) => {
+      if (e.target.closest('.btn-card-toggle')) return;
       activeTabRunId = runId;
       runTabBar.querySelectorAll('.run-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.runId === runId);
       });
       updateTabFocus();
     });
+
+    const summaryToggleBtn = summaryCardEl.querySelector('.btn-card-toggle');
+    if (summaryToggleBtn) {
+      summaryToggleBtn.addEventListener('click', (e) => {
+        toggleRunMinimize(runId, e);
+      });
+    }
 
     if (summaryCardsContainer) summaryCardsContainer.appendChild(summaryCardEl);
 
@@ -402,7 +419,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <div class="run-color-bar" style="background-color: ${color};"></div>
           <div class="run-title">${escapeHtml(name)}</div>
         </div>
-        <div class="run-status-badge IDLE">IDLE</div>
+        <div class="card-header-actions">
+          <div class="run-status-badge IDLE">IDLE</div>
+          <button class="btn-card-toggle" title="Minimize / Disable Card" data-run-id="${runId}">−</button>
+        </div>
       </div>
 
       <div class="run-metrics-strip">
