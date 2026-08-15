@@ -1095,6 +1095,120 @@ pre {
   box-shadow: var(--shadow-card);
 }
 
+/* Landing Page Wave Pipeline Visualizer (matching image copy 15.png) */
+.feature-wave-display {
+  background-color: #08080a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  padding: 24px 20px 20px;
+  box-shadow: var(--shadow-card), 0 0 30px rgba(0, 0, 0, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-wave-track {
+  position: relative;
+  width: 100%;
+  padding: 0.75rem 0 0.65rem;
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.landing-wave-track .wave-pipeline-track-svg-wrapper {
+  position: relative;
+  width: 100%;
+  height: 64px;
+}
+
+.landing-wave-track .wave-pipeline-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(163, 230, 53, 0.45));
+}
+
+.landing-wave-track .wave-path-line {
+  filter: drop-shadow(0 0 6px rgba(163, 230, 53, 0.75));
+}
+
+.landing-wave-track .wave-indicator-dot {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  z-index: 10;
+  pointer-events: none;
+  transition: left 0.65s cubic-bezier(0.34, 1.35, 0.64, 1), top 0.65s cubic-bezier(0.34, 1.35, 0.64, 1);
+}
+
+.landing-wave-track .wave-indicator-dot .aurora-dot-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: #a3e635;
+  box-shadow: 0 0 14px rgba(163, 230, 53, 0.95), 0 0 24px rgba(163, 230, 53, 0.6);
+}
+
+.landing-wave-track .wave-indicator-dot .aurora-dot-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: rgba(163, 230, 53, 0.35);
+  animation: landing-aurora-pulse-anim 1.8s infinite ease-in-out;
+}
+
+@keyframes landing-aurora-pulse-anim {
+  0% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.9; }
+  50% { transform: translate(-50%, -50%) scale(1.6); opacity: 0.2; }
+  100% { transform: translate(-50%, -50%) scale(0.7); opacity: 0.9; }
+}
+
+.landing-wave-track .wave-stage-labels {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  width: 100%;
+  text-align: center;
+  margin-top: 6px;
+  position: relative;
+  z-index: 5;
+}
+
+.landing-wave-track .wave-stage-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: all 0.3s ease;
+  user-select: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.landing-wave-track .wave-stage-label:hover {
+  color: #d4d4d8;
+}
+
+.landing-wave-track .wave-stage-label.active {
+  color: #a3e635;
+  font-weight: 700;
+  text-shadow: 0 0 10px rgba(163, 230, 53, 0.65);
+  transform: translateY(-1px);
+}
+
 /* Video Showcase Section (`#see-it`) */
 .video-showcase-container {
   background-color: var(--bg-card);

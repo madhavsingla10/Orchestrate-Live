@@ -13,3 +13,11 @@ yarn-error.log*
 # System Files
 .DS_Store
 Thumbs.db
+
+# Screenshots & Temporary Images
+image copy*.png
+image*.png
+screenshot*.png
+*.png
+!public/**/*.png
+!OrchestrateLive-Landing/**/*.png

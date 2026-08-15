@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initVideoUploadAndPlayer();
   initWebAudioEngine();
   initRealInterfaceSimulator();
+  initLandingWaveSimulator();
   initFaqAccordion();
 });
 
@@ -399,4 +400,63 @@ function initRealInterfaceSimulator() {
   function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+}
+
+/* ==========================================================
+   5. Interactive Landing Wave Pipeline Simulator
+   ========================================================== */
+function initLandingWaveSimulator() {
+  const dot = document.getElementById('landing-wave-dot');
+  const labels = document.querySelectorAll('.landing-wave-track .wave-stage-label');
+  if (!dot || labels.length === 0) return;
+
+  const STAGES = [
+    { key: 'thought',  left: '7.14%',  top: '48%', sound: 'thought' },
+    { key: 'planning', left: '21.43%', top: '30%', sound: 'tool' },
+    { key: 'reading',  left: '35.71%', top: '44%', sound: 'tool' },
+    { key: 'writing',  left: '50.00%', top: '26%', sound: 'tool' },
+    { key: 'terminal', left: '64.29%', top: '42%', sound: 'tool' },
+    { key: 'mcp',      left: '78.57%', top: '28%', sound: 'tool' },
+    { key: 'done',     left: '92.86%', top: '46%', sound: 'done' }
+  ];
+
+  let currentStageIndex = 4; // Start at Terminal (matching image copy 15.png)
+  let autoCycleTimer = null;
+
+  function setStage(index, playAudio = false) {
+    currentStageIndex = index;
+    const stage = STAGES[index];
+    if (!stage) return;
+
+    dot.style.left = stage.left;
+    dot.style.top = stage.top;
+
+    labels.forEach((lbl, i) => {
+      lbl.classList.toggle('active', i === index);
+    });
+
+    if (playAudio && typeof playSound === 'function') {
+      playSound(stage.sound);
+    }
+  }
+
+  // Interactive click on any stage label
+  labels.forEach((lbl, idx) => {
+    lbl.addEventListener('click', () => {
+      clearInterval(autoCycleTimer);
+      setStage(idx, true);
+      startAutoCycle();
+    });
+  });
+
+  function startAutoCycle() {
+    clearInterval(autoCycleTimer);
+    autoCycleTimer = setInterval(() => {
+      const nextIndex = (currentStageIndex + 1) % STAGES.length;
+      setStage(nextIndex, false);
+    }, 2200);
+  }
+
+  setStage(4, false);
+  startAutoCycle();
 }

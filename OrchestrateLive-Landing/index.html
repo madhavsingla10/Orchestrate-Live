@@ -4,9 +4,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Run AI Coding Agents in Real-Time | OrchestrateLive</title>
+  <title>OrchestrateLive</title>
   <meta name="description"
     content="Turn raw AI agent terminal logs into an interactive visual control room with live token counters and multi-agent monitoring. 100% Free & Open Source.">
+  
+  <!-- Project Favicon Logo -->
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="alternate icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' rx='7' fill='%230b0d13' stroke='%2338bdf8' stroke-width='2'/%3E%3Ccircle cx='9' cy='9' r='2.2' fill='%2310b981'/%3E%3Ccircle cx='16' cy='9' r='2.2' fill='%23f59e0b'/%3E%3Ccircle cx='23' cy='9' r='2.2' fill='%23ef4444'/%3E%3Cpath d='M8 17h6' stroke='%2310b981' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M17 17h7' stroke='%23475569' stroke-width='2.5' stroke-linecap='round'/%3E%3Cpath d='M8 23h11' stroke='%2306b6d4' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E">
+  
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -260,42 +265,57 @@
   <section class="section" id="features" data-section="features">
     <div class="container">
 
-      <!-- Feature 1: Visual Stage Pipeline -->
+      <!-- Feature 1: Visual Stage Wave Pipeline (Simulated on Left, Text on Right) -->
       <div class="feature-block">
+        <!-- Left: Simulated Wave Pipeline Track (matching image copy 15.png) -->
+        <div class="feature-card-display feature-wave-display">
+          <div
+            style="font-family: var(--font-mono); font-size: 0.8rem; color: #a3e635; margin-bottom: 14px; font-weight:600; display:flex; align-items:center; justify-content:space-between;">
+            <span>● LIVE STAGE WAVE PIPELINE</span>
+            <span style="font-size:0.7rem; color:var(--text-muted); background:rgba(255,255,255,0.05); padding:2px 8px; border-radius:4px;">INTERACTIVE</span>
+          </div>
+
+          <div class="wave-pipeline-track landing-wave-track">
+            <div class="wave-pipeline-track-svg-wrapper">
+              <svg class="wave-pipeline-svg" viewBox="0 0 1000 100" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="landing-wave-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#a3e635" stop-opacity="0.3"></stop>
+                    <stop offset="100%" stop-color="#a3e635" stop-opacity="0.0"></stop>
+                  </linearGradient>
+                </defs>
+                <path class="wave-path-line" d="M 0,55 C 35,55 50,48 71.4,48 C 120,48 160,30 214.3,30 C 270,30 300,44 357.1,44 C 410,44 450,26 500,26 C 550,26 590,42 642.9,42 C 700,42 730,28 785.7,28 C 840,28 880,46 928.6,46 C 960,46 980,50 1000,50" fill="none" stroke="#a3e635" stroke-width="2.5"></path>
+                <path d="M 0,55 C 35,55 50,48 71.4,48 C 120,48 160,30 214.3,30 C 270,30 300,44 357.1,44 C 410,44 450,26 500,26 C 550,26 590,42 642.9,42 C 700,42 730,28 785.7,28 C 840,28 880,46 928.6,46 C 960,46 980,50 1000,50 L 1000,100 L 0,100 Z" fill="url(#landing-wave-grad)"></path>
+              </svg>
+
+              <!-- Animated Traveling Glowing Dot -->
+              <div class="wave-indicator-dot" id="landing-wave-dot" style="left: 64.29%; top: 42%;">
+                <div class="aurora-dot-core"></div>
+                <div class="aurora-dot-pulse"></div>
+              </div>
+            </div>
+
+            <!-- Stage Labels along the Wave Grid -->
+            <div class="wave-stage-labels">
+              <div class="wave-stage-label" data-landing-stage="thought">THOUGHT</div>
+              <div class="wave-stage-label" data-landing-stage="planning">PLANNING</div>
+              <div class="wave-stage-label" data-landing-stage="reading">READING</div>
+              <div class="wave-stage-label" data-landing-stage="writing">WRITING</div>
+              <div class="wave-stage-label active" data-landing-stage="terminal">TERMINAL</div>
+              <div class="wave-stage-label" data-landing-stage="mcp">MCP</div>
+              <div class="wave-stage-label" data-landing-stage="done">DONE</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Text Description -->
         <div>
           <div class="feature-tag">VISUAL PIPELINE</div>
           <h2 class="feature-heading">Know exactly what your AI is doing</h2>
           <p class="feature-body">
-            No more reading dense, fast-scrolling terminal logs to figure out if your AI agent is stuck in an error
-            loop.
-            OrchestrateLive renders a 6-stage live flowchart mapping <strong>Thought ➜ Planning ➜ Reading ➜ Writing ➜
-              Terminal ➜ MCP ➜ Done</strong>.
+            No more reading dense, fast-scrolling terminal logs to figure out if your AI agent is stuck in an error loop.
+            OrchestrateLive renders a real-time reactive wave track mapping <strong>Thought ➜ Planning ➜ Reading ➜ Writing ➜ Terminal ➜ MCP ➜ Done</strong> with a smooth traveling state indicator.
           </p>
-        </div>
-        <div class="feature-card-display">
-          <div
-            style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent-emerald); margin-bottom: 16px; font-weight:600">
-            ● STAGE PROGRESSION MAP
-          </div>
-          <div style="display:flex; flex-direction:column; gap: 10px;">
-            <div
-              style="background:var(--bg-dark); padding:12px 16px; border-radius: var(--radius-sm); border:1px solid rgba(16,185,129,0.3); display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-weight:600; color:var(--text-primary)">🧠 1. Thought</span>
-              <span
-                style="color:var(--accent-emerald); font-family:var(--font-mono); font-size:0.8rem; font-weight:600">Active
-                (Analyzing)</span>
-            </div>
-            <div
-              style="background:var(--bg-dark); padding:12px 16px; border-radius: var(--radius-sm); border:1px solid var(--border-subtle); display:flex; justify-content:space-between; opacity: 0.7;">
-              <span>📋 2. Planning</span>
-              <span style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.8rem;">Queued</span>
-            </div>
-            <div
-              style="background:var(--bg-dark); padding:12px 16px; border-radius: var(--radius-sm); border:1px solid var(--border-subtle); display:flex; justify-content:space-between; opacity: 0.7;">
-              <span>🔍 3. Reading Files</span>
-              <span style="color:var(--text-muted); font-family:var(--font-mono); font-size:0.8rem;">Pending</span>
-            </div>
-          </div>
         </div>
       </div>
 
