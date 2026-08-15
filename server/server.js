@@ -32,20 +32,7 @@ app.use('/frontend', express.static(path.join(__dirname, '../OrchestrateLive-Lan
 
 // Create combined HTTP & WebSocket server
 const server = http.createServer(app);
-const wss = new ws.WebSocketServer({ noServer: true });
-
-// Handle WebSocket upgrades at '/stream'
-server.on('upgrade', (request, socket, head) => {
-  const pathname = new URL(request.url, `http://${request.headers.host}`).pathname;
-
-  if (pathname === '/stream') {
-    wss.handleUpgrade(request, socket, head, (wsClient) => {
-      wss.emit('connection', wsClient, request);
-    });
-  } else {
-    socket.destroy();
-  }
-});
+const wss = new ws.WebSocketServer({ server, path: '/stream' });
 
 // WebSocket Connection Management
 wss.on('connection', (wsClient, request) => {

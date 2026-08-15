@@ -34,11 +34,27 @@
         <div id="active-runs-count" class="badge-active-runs">0 Active Runs</div>
       </div>
       <div class="header-right-controls">
-        <button id="reset-dashboard-btn" class="btn btn-reset-toggle" title="Reset all metrics and runs">
-          Reset
+        <button id="reset-dashboard-btn" class="dorian-btn btn-reset-toggle" title="Reset all metrics and runs">
+          <div class="dorian-border">
+            <div class="dorian-border-bg"></div>
+          </div>
+          <div class="dorian-layer-1"></div>
+          <div class="dorian-layer-2"></div>
+          <div class="dorian-layer-3"></div>
+          <div class="dorian-layer-4"></div>
+          <div class="dorian-layer-inner-glow"></div>
+          <div class="dorian-content">
+            <span class="reset-label-text">Reset</span>
+          </div>
+          <div class="dorian-hover-sheen"></div>
         </button>
-        <button id="audio-toggle" class="btn btn-audio-toggle muted">
-          <span class="icon">🔇</span> Enable Audio
+
+        <button id="audio-toggle" class="btn btn-spacious btn-audio-toggle muted" title="Toggle audio telemetry cues">
+          <div class="blob1"></div>
+          <div class="inner">
+            <span class="icon">🔇</span>
+            <span class="audio-label-text">Enable Audio</span>
+          </div>
         </button>
       </div>
     </header>
@@ -58,39 +74,75 @@
     <!-- Combined Master Metrics Ribbon for All Runs Grid View -->
     <section id="master-metrics-ribbon" class="metrics-ribbon">
       <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">PIPELINE LATENCY</span>
-          <span class="metric-badge avg">AVG LATENCY</span>
+        <div class="metric-card-inner">
+          <div class="metric-header">
+            <span class="metric-label">PIPELINE LATENCY</span>
+            <span class="metric-badge avg">AVG LATENCY</span>
+          </div>
+          <span id="master-metric-latency" class="metric-value">-- ms</span>
         </div>
-        <span id="master-metric-latency" class="metric-value">-- ms</span>
       </div>
       <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">PROCESSING SPEED</span>
-          <span class="metric-badge avg">AVG SPEED</span>
+        <div class="metric-card-inner">
+          <div class="metric-header">
+            <span class="metric-label">PROCESSING SPEED</span>
+            <span class="metric-badge avg">AVG SPEED</span>
+          </div>
+          <span id="master-metric-speed" class="metric-value">-- t/s</span>
         </div>
-        <span id="master-metric-speed" class="metric-value">-- t/s</span>
       </div>
       <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">CONTEXT WINDOW</span>
-          <span class="metric-badge avg">AVG CONTEXT</span>
+        <div class="metric-card-inner">
+          <div class="metric-header">
+            <span class="metric-label">CONTEXT WINDOW</span>
+            <span class="metric-badge avg">AVG CONTEXT</span>
+          </div>
+          <span id="master-metric-context" class="metric-value">-- %</span>
         </div>
-        <span id="master-metric-context" class="metric-value">-- %</span>
       </div>
       <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-label">TOTAL TOKENS</span>
-          <span class="metric-badge in-out">IN / OUT</span>
+        <div class="metric-card-inner">
+          <div class="metric-header">
+            <span class="metric-label">TOTAL TOKENS</span>
+            <span class="metric-badge in-out">IN / OUT</span>
+          </div>
+          <span id="master-metric-cost" class="metric-value">-- in / -- out</span>
         </div>
-        <span id="master-metric-cost" class="metric-value">-- in / -- out</span>
       </div>
     </section>
+
+    <!-- Section Divider Bar for Summary Overview Cards -->
+    <div class="section-divider-bar" id="summary-section-toggle" title="Click to collapse/expand Summary Cards">
+      <div class="section-divider-title">
+        <span class="dot-indicator green"></span>
+        <span>SUMMARY CARDS GRID</span>
+      </div>
+      <div class="section-divider-line"></div>
+      <button class="section-chevron-btn" aria-label="Toggle Summary Cards">
+        <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+      </button>
+    </div>
 
     <!-- 4-in-a-Row Square Summary Cards Grid (matching image copy 8.png) -->
     <section id="summary-cards-container" class="summary-cards-grid">
       <!-- Dynamic Square Summary Cards will be rendered here by app.js -->
     </section>
+
+    <!-- Section Divider Bar for Detailed Process Cards -->
+    <div class="section-divider-bar" id="detailed-section-toggle" title="Click to collapse/expand Detailed Process Cards">
+      <div class="section-divider-title">
+        <span class="dot-indicator cyan"></span>
+        <span>DETAILED PROCESS RUNS</span>
+      </div>
+      <div class="section-divider-line"></div>
+      <button class="section-chevron-btn" aria-label="Toggle Detailed Process Cards">
+        <svg class="chevron-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+      </button>
+    </div>
 
     <!-- Multi-Run Parallel Split Grid Container (Detailed Cards below) -->
     <section id="multi-run-container" class="multi-run-grid parallel-mode">
@@ -104,80 +156,73 @@
       <!-- Metrics Ribbon -->
       <section class="metrics-ribbon">
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-label">PIPELINE LATENCY</span>
-            <span class="metric-badge realtime">REAL-TIME</span>
+          <div class="metric-card-inner">
+            <div class="metric-header">
+              <span class="metric-label">PIPELINE LATENCY</span>
+              <span class="metric-badge realtime">REAL-TIME</span>
+            </div>
+            <span id="metric-latency" class="metric-value">-- ms</span>
           </div>
-          <span id="metric-latency" class="metric-value">-- ms</span>
         </div>
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-label">PROCESSING SPEED</span>
-            <span id="badge-speed" class="metric-badge live">LIVE</span>
+          <div class="metric-card-inner">
+            <div class="metric-header">
+              <span class="metric-label">PROCESSING SPEED</span>
+              <span id="badge-speed" class="metric-badge live">LIVE</span>
+            </div>
+            <span id="metric-speed" class="metric-value">-- t/s</span>
           </div>
-          <span id="metric-speed" class="metric-value">-- t/s</span>
         </div>
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-label">CONTEXT WINDOW</span>
-            <span id="badge-context" class="metric-badge live">LIVE</span>
+          <div class="metric-card-inner">
+            <div class="metric-header">
+              <span class="metric-label">CONTEXT WINDOW</span>
+              <span id="badge-context" class="metric-badge live">LIVE</span>
+            </div>
+            <span id="metric-context" class="metric-value">-- %</span>
           </div>
-          <span id="metric-context" class="metric-value">-- %</span>
         </div>
         <div class="metric-card">
-          <div class="metric-header">
-            <span class="metric-label">TOTAL TOKENS</span>
-            <span id="badge-cost" class="metric-badge in-out">IN / OUT</span>
+          <div class="metric-card-inner">
+            <div class="metric-header">
+              <span class="metric-label">TOTAL TOKENS</span>
+              <span id="badge-cost" class="metric-badge in-out">IN / OUT</span>
+            </div>
+            <span id="metric-cost" class="metric-value">-- in / -- out</span>
           </div>
-          <span id="metric-cost" class="metric-value">-- in / -- out</span>
         </div>
       </section>
 
-      <!-- Single Pipeline Flow Diagram (Hidden in Master View to keep view tidy for multi-agents) -->
-      <section class="pipeline-section" id="single-pipeline-container">
+      <!-- Wave Pipeline Indicator Track for Single Focus View -->
+      <section class="wave-pipeline-track single-view-track" id="single-pipeline-container">
+        <div class="wave-pipeline-track-svg-wrapper">
+          <svg class="wave-pipeline-svg" viewBox="0 0 1000 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="single-wave-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#a3e635" stop-opacity="0.3"></stop>
+                <stop offset="100%" stop-color="#a3e635" stop-opacity="0.0"></stop>
+              </linearGradient>
+            </defs>
+            <path class="wave-path-line" d="M 0,55 C 35,55 50,48 71.4,48 C 120,48 160,30 214.3,30 C 270,30 300,44 357.1,44 C 410,44 450,26 500,26 C 550,26 590,42 642.9,42 C 700,42 730,28 785.7,28 C 840,28 880,46 928.6,46 C 960,46 980,50 1000,50" fill="none" stroke="#a3e635" stroke-width="2.5"></path>
+            <path d="M 0,55 C 35,55 50,48 71.4,48 C 120,48 160,30 214.3,30 C 270,30 300,44 357.1,44 C 410,44 450,26 500,26 C 550,26 590,42 642.9,42 C 700,42 730,28 785.7,28 C 840,28 880,46 928.6,46 C 960,46 980,50 1000,50 L 1000,100 L 0,100 Z" fill="url(#single-wave-grad)"></path>
+          </svg>
 
-        <div class="pipeline-flow" id="single-pipeline-flow">
-          <div class="pipeline-node" id="node-thinking">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Thought</div>
-            <div class="node-sub">Analyzing</div>
+          <!-- Moving Glowing Dot Centered Exactly on the Green Wave -->
+          <div class="wave-indicator-dot" id="single-wave-dot" style="left: 7.14%; top: 48%;">
+            <div class="aurora-dot-core"></div>
+            <div class="aurora-dot-pulse"></div>
           </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node" id="node-planning">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Planning</div>
-            <div class="node-sub">Structuring</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node" id="node-reading">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Reading</div>
-            <div class="node-sub">Files & Search</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node" id="node-writing">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Writing</div>
-            <div class="node-sub">Editing Code</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node" id="node-terminal">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Terminal</div>
-            <div class="node-sub">Commands</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node" id="node-mcp">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">MCP</div>
-            <div class="node-sub">Tools</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node" id="node-task_done">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Done</div>
-            <div class="node-sub">Completed</div>
-          </div>
+        </div>
+
+        <!-- Stage Labels along the Wave Grid -->
+        <div class="wave-stage-labels">
+          <div class="wave-stage-label stage-thinking active" id="single-stage-thinking">Thought</div>
+          <div class="wave-stage-label stage-planning" id="single-stage-planning">Planning</div>
+          <div class="wave-stage-label stage-reading" id="single-stage-reading">Reading</div>
+          <div class="wave-stage-label stage-writing" id="single-stage-writing">Writing</div>
+          <div class="wave-stage-label stage-terminal" id="single-stage-terminal">Terminal</div>
+          <div class="wave-stage-label stage-mcp" id="single-stage-mcp">MCP</div>
+          <div class="wave-stage-label stage-task_done" id="single-stage-task_done">Done</div>
         </div>
       </section>
 

@@ -22,7 +22,23 @@ document.addEventListener('DOMContentLoaded', () => {
   const masterMetricSpeed = document.getElementById('master-metric-speed');
   const masterMetricContext = document.getElementById('master-metric-context');
   const masterMetricCost = document.getElementById('master-metric-cost');
+  // DOM Elements - Collapsible Section Divider Bars
+  const summarySectionToggle = document.getElementById('summary-section-toggle');
+  const detailedSectionToggle = document.getElementById('detailed-section-toggle');
 
+  if (summarySectionToggle && summaryCardsContainer) {
+    summarySectionToggle.addEventListener('click', () => {
+      const isCollapsed = summaryCardsContainer.classList.toggle('collapsed-section');
+      summarySectionToggle.classList.toggle('collapsed', isCollapsed);
+    });
+  }
+
+  if (detailedSectionToggle && multiRunContainer) {
+    detailedSectionToggle.addEventListener('click', () => {
+      const isCollapsed = multiRunContainer.classList.toggle('collapsed-section');
+      detailedSectionToggle.classList.toggle('collapsed', isCollapsed);
+    });
+  }
 
   // DOM Elements - Reset Controls & Modal Warning
   const resetDashboardBtn = document.getElementById('reset-dashboard-btn');
@@ -289,7 +305,9 @@ document.addEventListener('DOMContentLoaded', () => {
       singleFocusSection.classList.add('hidden');
       
       if (masterMetricsRibbon) masterMetricsRibbon.classList.remove('hidden');
+      if (summarySectionToggle) summarySectionToggle.classList.remove('hidden');
       if (summaryCardsContainer) summaryCardsContainer.classList.remove('hidden');
+      if (detailedSectionToggle) detailedSectionToggle.classList.remove('hidden');
       if (multiRunContainer) multiRunContainer.className = 'multi-run-grid parallel-mode';
 
       Object.values(runsStore).forEach(run => {
@@ -303,7 +321,9 @@ document.addEventListener('DOMContentLoaded', () => {
       singleFocusSection.classList.add('individual-run-mode');
 
       if (masterMetricsRibbon) masterMetricsRibbon.classList.add('hidden');
+      if (summarySectionToggle) summarySectionToggle.classList.add('hidden');
       if (summaryCardsContainer) summaryCardsContainer.classList.add('hidden');
+      if (detailedSectionToggle) detailedSectionToggle.classList.add('hidden');
       if (multiRunContainer) multiRunContainer.className = 'multi-run-grid hidden';
 
       // Display Full Focus View for this specific CLI
@@ -359,15 +379,13 @@ document.addEventListener('DOMContentLoaded', () => {
     summaryCardEl.className = 'summary-card';
     summaryCardEl.id = `summary-card-${runId}`;
     summaryCardEl.innerHTML = `
+      <div class="card-blur-glow"></div>
       <div class="summary-card-header">
         <div class="run-title-group">
           <div class="run-color-bar" style="background-color: ${color};"></div>
           <div class="run-title">${escapeHtml(name)}</div>
         </div>
-        <div class="card-header-actions">
-          <div class="run-status-badge IDLE">IDLE</div>
-          <button class="btn-card-toggle" title="Minimize / Disable Card" data-run-id="${runId}">−</button>
-        </div>
+        <div class="run-status-badge IDLE">IDLE</div>
       </div>
 
       <div class="run-metrics-strip">
@@ -390,21 +408,13 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    summaryCardEl.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-card-toggle')) return;
+    summaryCardEl.addEventListener('click', () => {
       activeTabRunId = runId;
       runTabBar.querySelectorAll('.run-tab').forEach(t => {
         t.classList.toggle('active', t.dataset.runId === runId);
       });
       updateTabFocus();
     });
-
-    const summaryToggleBtn = summaryCardEl.querySelector('.btn-card-toggle');
-    if (summaryToggleBtn) {
-      summaryToggleBtn.addEventListener('click', (e) => {
-        toggleRunMinimize(runId, e);
-      });
-    }
 
     if (summaryCardsContainer) summaryCardsContainer.appendChild(summaryCardEl);
 
@@ -414,15 +424,13 @@ document.addEventListener('DOMContentLoaded', () => {
     cardEl.id = `run-card-${runId}`;
 
     cardEl.innerHTML = `
+      <div class="card-blur-glow"></div>
       <div class="run-card-header">
         <div class="run-title-group">
           <div class="run-color-bar" style="background-color: ${color};"></div>
           <div class="run-title">${escapeHtml(name)}</div>
         </div>
-        <div class="card-header-actions">
-          <div class="run-status-badge IDLE">IDLE</div>
-          <button class="btn-card-toggle" title="Minimize / Disable Card" data-run-id="${runId}">−</button>
-        </div>
+        <div class="run-status-badge IDLE">IDLE</div>
       </div>
 
       <div class="run-metrics-strip">
@@ -444,42 +452,36 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
 
-      <div class="run-pipeline-container">
-        <div class="run-pipeline-flow">
-          <div class="pipeline-node node-run-thinking">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Thought</div>
+      <!-- Wave Pipeline Indicator Track (Traveling Dot on Green Wave) -->
+      <div class="wave-pipeline-track" id="wave-track-${runId}">
+        <div class="wave-pipeline-track-svg-wrapper">
+          <svg class="wave-pipeline-svg" viewBox="0 0 1000 100" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="wave-grad-${runId}" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="#a3e635" stop-opacity="0.3"></stop>
+                <stop offset="100%" stop-color="#a3e635" stop-opacity="0.0"></stop>
+              </linearGradient>
+            </defs>
+            <path class="wave-path-line" d="M 0,55 C 35,55 50,48 71.4,48 C 120,48 160,30 214.3,30 C 270,30 300,44 357.1,44 C 410,44 450,26 500,26 C 550,26 590,42 642.9,42 C 700,42 730,28 785.7,28 C 840,28 880,46 928.6,46 C 960,46 980,50 1000,50" fill="none" stroke="#a3e635" stroke-width="2.5"></path>
+            <path d="M 0,55 C 35,55 50,48 71.4,48 C 120,48 160,30 214.3,30 C 270,30 300,44 357.1,44 C 410,44 450,26 500,26 C 550,26 590,42 642.9,42 C 700,42 730,28 785.7,28 C 840,28 880,46 928.6,46 C 960,46 980,50 1000,50 L 1000,100 L 0,100 Z" fill="url(#wave-grad-${runId})"></path>
+          </svg>
+
+          <!-- The Traveling Glowing Indicator Dot Centered Directly on the Green Line -->
+          <div class="wave-indicator-dot" style="left: 7.14%; top: 48%;">
+            <div class="aurora-dot-core"></div>
+            <div class="aurora-dot-pulse"></div>
           </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node node-run-planning">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Planning</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node node-run-reading">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Reading</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node node-run-writing">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Writing</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node node-run-terminal">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Terminal</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node node-run-mcp">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">MCP</div>
-          </div>
-          <div class="flow-arrow"></div>
-          <div class="pipeline-node node-run-task_done">
-            <div class="indicator-ring"><div class="indicator-dot"></div></div>
-            <div class="node-label">Done</div>
-          </div>
+        </div>
+
+        <!-- Stage Labels along the 7-grid Wave Line -->
+        <div class="wave-stage-labels">
+          <div class="wave-stage-label stage-thinking active" data-stage="thinking">Thought</div>
+          <div class="wave-stage-label stage-planning" data-stage="planning">Planning</div>
+          <div class="wave-stage-label stage-reading" data-stage="reading">Reading</div>
+          <div class="wave-stage-label stage-writing" data-stage="writing">Writing</div>
+          <div class="wave-stage-label stage-terminal" data-stage="terminal">Terminal</div>
+          <div class="wave-stage-label stage-mcp" data-stage="mcp">MCP</div>
+          <div class="wave-stage-label stage-task_done" data-stage="task_done">Done</div>
         </div>
       </div>
 
@@ -494,14 +496,15 @@ document.addEventListener('DOMContentLoaded', () => {
     multiRunContainer.appendChild(cardEl);
 
     // Extract reference pointers
-    const nodes = {
-      thinking: cardEl.querySelector('.node-run-thinking'),
-      planning: cardEl.querySelector('.node-run-planning'),
-      reading: cardEl.querySelector('.node-run-reading'),
-      writing: cardEl.querySelector('.node-run-writing'),
-      terminal: cardEl.querySelector('.node-run-terminal'),
-      mcp: cardEl.querySelector('.node-run-mcp'),
-      task_done: cardEl.querySelector('.node-run-task_done')
+    const waveDotEl = cardEl.querySelector('.wave-indicator-dot');
+    const stageLabels = {
+      thinking: cardEl.querySelector('.stage-thinking'),
+      planning: cardEl.querySelector('.stage-planning'),
+      reading: cardEl.querySelector('.stage-reading'),
+      writing: cardEl.querySelector('.stage-writing'),
+      terminal: cardEl.querySelector('.stage-terminal'),
+      mcp: cardEl.querySelector('.stage-mcp'),
+      task_done: cardEl.querySelector('.stage-task_done')
     };
 
     const metricsEls = {
@@ -526,7 +529,8 @@ document.addEventListener('DOMContentLoaded', () => {
       cardEl,
       summaryCardEl,
       tabEl,
-      nodes,
+      waveDotEl,
+      stageLabels,
       metricsEls,
       consoleEl,
       lastRunningCommand: '',
@@ -537,6 +541,18 @@ document.addEventListener('DOMContentLoaded', () => {
     updateActiveRunsCount();
     return runsStore[runId];
   }
+
+  const STAGE_POSITIONS = {
+    idle:        { left: '7.14%',  top: '48%', label: 'thinking' },
+    thinking:    { left: '7.14%',  top: '48%', label: 'thinking' },
+    planning:    { left: '21.43%', top: '30%', label: 'planning' },
+    reading:     { left: '35.71%', top: '44%', label: 'reading' },
+    writing:     { left: '50.00%', top: '26%', label: 'writing' },
+    terminal:    { left: '64.29%', top: '42%', label: 'terminal' },
+    mcp:         { left: '78.57%', top: '28%', label: 'mcp' },
+    task_done:   { left: '92.86%', top: '46%', label: 'task_done' },
+    task_error:  { left: '92.86%', top: '46%', label: 'task_done' }
+  };
 
   let previousRunCount = 0;
 
@@ -573,49 +589,52 @@ document.addEventListener('DOMContentLoaded', () => {
     autoManageTabSelection();
   }
 
-  // Updates pipeline nodes for a specific run
+  // Updates traveling wave dot and stage indicators for a specific run
   function updateRunPipelineUI(runObj, activeEvent, toolName) {
     if (!runObj) return;
 
-    if (runObj.nodes && Object.keys(runObj.nodes).length > 0) {
-      Object.values(runObj.nodes).forEach(node => {
-        if (node) node.classList.remove('active', 'error');
-      });
-    }
-
     let badgeText = 'IDLE';
     let badgeClass = 'IDLE';
+    let stageName = 'thinking';
 
     if (activeEvent === 'task_error') {
       badgeText = 'ERROR';
       badgeClass = 'task_error';
-      if (runObj.nodes) {
-        Object.values(runObj.nodes).forEach(node => {
-          if (node) node.classList.add('error');
-        });
-      }
+      stageName = 'task_error';
     } else if (activeEvent === 'executing_tool') {
       badgeText = toolName ? formatToolBadgeName(toolName) : 'EXECUTING';
       badgeClass = 'executing_tool';
 
       const lower = (toolName || '').toLowerCase();
-      let activeNodeName = 'reading';
-
       if (lower.includes('mcp') || lower.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'todowrite', 'todoread'].includes(lower)) {
-        activeNodeName = 'mcp';
+        stageName = 'mcp';
       } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action', 'write', 'edit', 'multiedit'].includes(lower) || lower.includes('write') || lower.includes('edit')) {
-        activeNodeName = 'writing';
+        stageName = 'writing';
       } else if (['run_command', 'bash', 'terminal', 'cmd'].includes(lower) || lower.includes('bash') || lower.includes('command')) {
-        activeNodeName = 'terminal';
+        stageName = 'terminal';
       } else {
-        activeNodeName = 'reading';
+        stageName = 'reading';
       }
-
-      if (runObj.nodes && runObj.nodes[activeNodeName]) runObj.nodes[activeNodeName].classList.add('active');
     } else if (activeEvent) {
       badgeText = activeEvent.toUpperCase();
       badgeClass = activeEvent;
-      if (runObj.nodes && runObj.nodes[activeEvent]) runObj.nodes[activeEvent].classList.add('active');
+      stageName = activeEvent;
+    }
+
+    // Move the traveling indicator dot on the green wave!
+    const pos = STAGE_POSITIONS[stageName] || STAGE_POSITIONS.thinking;
+    if (runObj.waveDotEl) {
+      runObj.waveDotEl.style.left = pos.left;
+      runObj.waveDotEl.style.top = pos.top;
+      runObj.waveDotEl.classList.toggle('error-state', stageName === 'task_error');
+    }
+
+    // Highlight active stage label along the wave
+    if (runObj.stageLabels) {
+      const activeKey = pos.label || stageName;
+      Object.entries(runObj.stageLabels).forEach(([stg, el]) => {
+        if (el) el.classList.toggle('active', stg === activeKey);
+      });
     }
 
     if (runObj.metricsEls) {
@@ -719,15 +738,19 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   audioToggle.addEventListener('click', () => {
+    const iconEl = audioToggle.querySelector('.icon');
+    const labelEl = audioToggle.querySelector('.audio-label-text');
     if (audioEngine.muted) {
       audioEngine.setMuted(false);
-      audioToggle.textContent = '🔊 Audio Enabled';
+      if (iconEl) iconEl.textContent = '🔊';
+      if (labelEl) labelEl.textContent = 'Audio Enabled';
       audioToggle.classList.add('active');
       audioToggle.classList.remove('muted');
       appendSystemMessage('Audio telemetry synthesizer activated.');
     } else {
       audioEngine.setMuted(true);
-      audioToggle.textContent = '🔇 Enable Audio';
+      if (iconEl) iconEl.textContent = '🔇';
+      if (labelEl) labelEl.textContent = 'Enable Audio';
       audioToggle.classList.remove('active');
       audioToggle.classList.add('muted');
       appendSystemMessage('Audio telemetry muted.');
@@ -744,7 +767,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Connect to Bridge WebSocket Server
   function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/stream`;
+    const host = (window.location.port === '5173' || !window.location.port) 
+      ? `${window.location.hostname}:3000` 
+      : window.location.host;
+    const wsUrl = `${protocol}//${host}/stream`;
     
     setConnectionState('connecting', 'Connecting...');
     socket = new WebSocket(wsUrl);
@@ -896,27 +922,39 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function updateSinglePipelineUI(activeEvent, toolName) {
-    Object.values(singleNodes).forEach(node => {
-      if (node) node.classList.remove('active', 'error');
-    });
+    let stageName = 'thinking';
 
     if (activeEvent === 'task_error') {
-      Object.values(singleNodes).forEach(node => {
-        if (node) node.classList.add('error');
-      });
+      stageName = 'task_error';
     } else if (activeEvent === 'executing_tool') {
-      if (toolName && (toolName.startsWith('mcp_') || toolName.includes('mcp') || toolName.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text'].includes(toolName))) {
-        if (singleNodes.mcp) singleNodes.mcp.classList.add('active');
-      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content'].includes(toolName)) {
-        if (singleNodes.writing) singleNodes.writing.classList.add('active');
-      } else if (toolName === 'run_command') {
-        if (singleNodes.terminal) singleNodes.terminal.classList.add('active');
+      const lower = (toolName || '').toLowerCase();
+      if (lower.includes('mcp') || lower.includes('stitch') || ['call_mcp_tool', 'create_project', 'generate_screen_from_text', 'edit_screens', 'todowrite', 'todoread'].includes(lower)) {
+        stageName = 'mcp';
+      } else if (['replace_file_content', 'write_to_file', 'multi_replace_file_content', 'code_action', 'write', 'edit', 'multiedit'].includes(lower) || lower.includes('write') || lower.includes('edit')) {
+        stageName = 'writing';
+      } else if (['run_command', 'bash', 'terminal', 'cmd'].includes(lower) || lower.includes('bash') || lower.includes('command')) {
+        stageName = 'terminal';
       } else {
-        if (singleNodes.reading) singleNodes.reading.classList.add('active');
+        stageName = 'reading';
       }
-    } else if (singleNodes[activeEvent]) {
-      singleNodes[activeEvent].classList.add('active');
+    } else if (activeEvent) {
+      stageName = activeEvent;
     }
+
+    const pos = STAGE_POSITIONS[stageName] || STAGE_POSITIONS.thinking;
+    const singleDot = document.getElementById('single-wave-dot');
+    if (singleDot) {
+      singleDot.style.left = pos.left;
+      singleDot.style.top = pos.top;
+      singleDot.classList.toggle('error-state', stageName === 'task_error');
+    }
+
+    const stageKeys = ['thinking', 'planning', 'reading', 'writing', 'terminal', 'mcp', 'task_done'];
+    const activeKey = pos.label || stageName;
+    stageKeys.forEach(stg => {
+      const el = document.getElementById(`single-stage-${stg}`);
+      if (el) el.classList.toggle('active', stg === activeKey);
+    });
   }
 
   function isCommandFailure(message, metadata) {
