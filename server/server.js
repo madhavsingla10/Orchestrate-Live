@@ -199,13 +199,46 @@ app.get('/api/runs', (req, res) => {
   return res.status(200).json({ runs: Object.values(runsState) });
 });
 
+let lastResetTimestamp = 0;
+
 // REST POST endpoint to reset all active runs state
 app.post('/api/runs/reset', (req, res) => {
+  lastResetTimestamp = Date.now();
   Object.keys(runsState).forEach(key => delete runsState[key]);
-  Object.keys(watchedTranscripts).forEach(key => delete watchedTranscripts[key]);
-  Object.keys(watchedKiloSessions).forEach(key => delete watchedKiloSessions[key]);
-  lastKiloDbMtime = 0;
   runColorIdx = 0;
+  
+  // Set existing transcript watchers to current end of file so old history is not replayed
+  Object.keys(watchedTranscripts).forEach(p => {
+    try {
+      if (fs.existsSync(p)) {
+        watchedTranscripts[p].currentFileSize = fs.statSync(p).size;
+        watchedTranscripts[p].lineRemainder = '';
+      }
+    } catch (e) {}
+  });
+
+  // Set existing Kilo watchers to current max row ID so past parts aren't re-ingested
+  const dbPath = getKiloDbPath();
+  if (dbPath) {
+    try {
+      execFile('sqlite3', ['-json', dbPath, "SELECT session_id, max(rowid) as max_row FROM part GROUP BY session_id;"], (err, stdout) => {
+        if (!err && stdout) {
+          try {
+            const rows = JSON.parse(stdout || '[]');
+            rows.forEach(r => {
+              if (r.session_id) {
+                watchedKiloSessions[r.session_id] = {
+                  run_id: `kilo-${r.session_id.length > 8 ? r.session_id.slice(-8) : r.session_id}`,
+                  run_name: `Kilo CLI`,
+                  lastRowId: r.max_row || 0
+                };
+              }
+            });
+          } catch (e) {}
+        }
+      });
+    } catch (e) {}
+  }
   
   // Broadcast reset notification to all connected clients
   wss.clients.forEach((client) => {
@@ -214,6 +247,7 @@ app.post('/api/runs/reset', (req, res) => {
     }
   });
 
+  console.log('[Server] Telemetry reset applied: set active window baseline to current time.');
   return res.status(200).json({ status: 'ok', message: 'All telemetry data reset successfully.' });
 });
 
@@ -351,7 +385,7 @@ function watchFileAndUpdate(transcriptPath, runId, runName, isClaude, stat) {
 }
 
 function scanAndProcessTranscripts() {
-  const activeWindow = Date.now() - (30 * 60 * 1000); // 30 minutes active window
+  const activeWindow = Math.max(lastResetTimestamp, Date.now() - (30 * 60 * 1000)); // active window bounded by reset
   const candidateTranscripts = [];
 
   // Auto-prune inactive runs from runsState if no activity in activeWindow
@@ -922,10 +956,17 @@ function scanAndProcessKiloTranscripts(activeWindow) {
   if (!dbPath || isKiloScanning) return;
 
   try {
-    const stat = fs.statSync(dbPath);
-    if (stat.mtimeMs < activeWindow) return;
-    if (lastKiloDbMtime && stat.mtimeMs <= lastKiloDbMtime) return;
-    lastKiloDbMtime = stat.mtimeMs;
+    let maxMtime = 0;
+    const filesToCheck = [dbPath, `${dbPath}-wal`, `${dbPath}-shm`];
+    for (const f of filesToCheck) {
+      if (fs.existsSync(f)) {
+        const s = fs.statSync(f);
+        if (s.mtimeMs > maxMtime) maxMtime = s.mtimeMs;
+      }
+    }
+    if (maxMtime < activeWindow) return;
+    if (lastKiloDbMtime && maxMtime <= lastKiloDbMtime) return;
+    lastKiloDbMtime = maxMtime;
   } catch (e) {
     return;
   }
@@ -956,7 +997,9 @@ function scanAndProcessKiloTranscripts(activeWindow) {
       }
 
       const activeSessions = sessions.filter(session => {
-        const updatedTime = session.time_updated ? new Date(session.time_updated).getTime() : (session.time_created ? new Date(session.time_created).getTime() : 0);
+        const updatedTime = session.time_updated 
+          ? (typeof session.time_updated === 'number' ? session.time_updated : new Date(session.time_updated).getTime())
+          : (session.time_created ? (typeof session.time_created === 'number' ? session.time_created : new Date(session.time_created).getTime()) : 0);
         return updatedTime >= activeWindow;
       });
 
@@ -974,9 +1017,7 @@ function scanAndProcessKiloTranscripts(activeWindow) {
         const shortTitle = session.title ? (session.title.length > 22 ? session.title.substring(0, 20) + '...' : session.title) : (session.slug || shortId);
         const runName = `Kilo CLI (${shortTitle})`;
 
-        let isInitial = false;
         if (!watchedKiloSessions[sessionId]) {
-          isInitial = true;
           watchedKiloSessions[sessionId] = {
             run_id: runId,
             run_name: runName,
@@ -1010,9 +1051,7 @@ function scanAndProcessKiloTranscripts(activeWindow) {
                 if (Array.isArray(parts) && parts.length > 0) {
                   parts.forEach(r => {
                     watched.lastRowId = Math.max(watched.lastRowId, r.row_id);
-                    if (!isInitial) {
-                      parseKiloPartAndBroadcast(r, runId, runName);
-                    }
+                    parseKiloPartAndBroadcast(r, runId, runName);
                   });
                 }
               } catch (e) {}
